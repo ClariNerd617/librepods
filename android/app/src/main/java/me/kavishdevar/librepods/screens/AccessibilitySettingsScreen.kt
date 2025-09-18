@@ -818,7 +818,11 @@ private fun parseTransparencySettingsResponse(data: ByteArray): TransparencySett
     val avg = (leftAmplification + rightAmplification) / 2
     val amplification = avg.coerceIn(0f, 1f)
     val diff = rightAmplification - leftAmplification
-    val balance = (0.5f + diff / (2 * avg)).coerceIn(0f, 1f)
+    val balance = if (avg == 0f) {
+        0.5f
+    } else {
+        (0.5f + diff / (2 * avg)).coerceIn(0f, 1f)
+    }
 
     return TransparencySettings(
         enabled = enabled > 0.5f,
