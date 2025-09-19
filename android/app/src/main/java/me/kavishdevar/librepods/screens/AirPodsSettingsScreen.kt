@@ -385,18 +385,7 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
                     )
                 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.head_gestures).uppercase(),
-                        style = TextStyle(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Light,
-                            color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
-                            fontFamily = FontFamily(Font(R.font.sf_pro))
-                        ),
-                        modifier = Modifier.padding(8.dp, bottom = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    NavigationButton(to = "head_tracking", "Head Tracking", navController)
+                    NavigationButton(to = "head_tracking", stringResource(R.string.head_gestures), navController)
 
                     Spacer(modifier = Modifier.height(16.dp))
                     NavigationButton(to = "", "Accessibility", navController = navController, onClick = {
