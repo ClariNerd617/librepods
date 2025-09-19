@@ -2145,11 +2145,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                         MediaController.sendPlay()
                     } else if (startHeadTrackingAgain) {
                         Log.d("AirPodsService", "Starting head tracking again after taking control")
-                        if (sharedPreferences.getBoolean("use_alternate_head_tracking_packets", false)) {
-                            aacpManager.sendDataPacket(aacpManager.createAlternateStartHeadTrackingPacket())
-                        } else {
-                            aacpManager.sendStartHeadTracking()
-                        }
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            startHeadTracking()
+                        }, 500)
                     }
                 }
             } else {
@@ -2602,7 +2600,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     fun startHeadTracking() {
         isHeadTrackingActive = true
         val useAlternatePackets = sharedPreferences.getBoolean("use_alternate_head_tracking_packets", false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && aacpManager.getControlCommandStatus(AACPManager.Companion.ControlCommandIdentifiers.OWNS_CONNECTION)?.value?.get(0)?.toInt() != 1) {
             takeOver("call", startHeadTrackingAgain = true)
             Log.d("AirPodsService", "Taking over for head tracking")
         } else {
