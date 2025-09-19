@@ -158,7 +158,7 @@ fun ToneVolumeSlider() {
                     )
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(sliderValue.floatValue / 100)
+                            .fillMaxWidth(sliderValue.floatValue / 125)
                             .height(4.dp)
                             .background(activeTrackColor, RoundedCornerShape(4.dp))
                     )
