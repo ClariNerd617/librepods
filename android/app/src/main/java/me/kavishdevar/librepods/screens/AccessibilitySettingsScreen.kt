@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeEffectScope
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.CupertinoMaterials
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.CoroutineScope
@@ -102,6 +103,7 @@ import me.kavishdevar.librepods.composables.ToneVolumeSlider
 import me.kavishdevar.librepods.composables.VolumeControlSwitch
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.ATTManager
+import me.kavishdevar.librepods.utils.ATTHandles
 import me.kavishdevar.librepods.utils.AACPManager
 import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import java.io.IOException
@@ -123,7 +125,7 @@ fun AccessibilitySettingsScreen() {
     val verticalScrollState  = rememberScrollState()
     val hazeState = remember { HazeState() }
     val snackbarHostState = remember { SnackbarHostState() }
-    val attManager = ATTManager(ServiceManager.getService()?.device?: throw IllegalStateException("No device connected"))
+    val attManager = ServiceManager.getService()?.attManager ?: throw IllegalStateException("ATTManager not available")
     // get the AACP manager if available (used for EQ read/write)
     val aacpManager = remember { ServiceManager.getService()?.aacpManager }
     val context = LocalContext.current
@@ -134,17 +136,6 @@ fun AccessibilitySettingsScreen() {
     val activeTrackColor = if (isDarkTheme) Color(0xFF007AFF) else Color(0xFF3C6DF5)
     val thumbColor = if (isDarkTheme) Color(0xFFFFFFFF) else Color(0xFFFFFFFF)
     val labelTextColor = if (isDarkTheme) Color.White else Color.Black
-
-    DisposableEffect(attManager) {
-        onDispose {
-            Log.d(TAG, "Disconnecting from ATT...")
-            try {
-                attManager.disconnect()
-            } catch (e: Exception) {
-                Log.w(TAG, "Error while disconnecting ATTManager: ${e.message}")
-            }
-        }
-    }
 
     Scaffold(
         containerColor = if (isSystemInDarkTheme()) Color(
@@ -198,6 +189,7 @@ fun AccessibilitySettingsScreen() {
     ) { paddingValues ->
         Column(
             modifier = Modifier
+                .hazeSource(hazeState)
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
@@ -367,20 +359,15 @@ fun AccessibilitySettingsScreen() {
 
             DisposableEffect(Unit) {
                 onDispose {
-                    attManager.unregisterListener(0x18, transparencyListener)
+                    attManager.unregisterListener(ATTHandles.TRANSPARENCY, transparencyListener)
                 }
             }
 
             LaunchedEffect(Unit) {
                 Log.d(TAG, "Connecting to ATT...")
                 try {
-                    attManager.connect()
-                    while (attManager.socket?.isConnected != true) {
-                        delay(100)
-                    }
-
-                    attManager.enableNotifications(0x18)
-                    attManager.registerListener(0x18, transparencyListener)
+                    attManager.enableNotifications(ATTHandles.TRANSPARENCY)
+                    attManager.registerListener(ATTHandles.TRANSPARENCY, transparencyListener)
 
                     // If we have an AACP manager, prefer its EQ data to populate EQ controls first
                     try {
@@ -407,7 +394,7 @@ fun AccessibilitySettingsScreen() {
                     for (attempt in 1..3) {
                         initialReadAttempts.value = attempt
                         try {
-                            val data = attManager.read(0x18)
+                            val data = attManager.read(ATTHandles.TRANSPARENCY)
                             parsedSettings = parseTransparencySettingsResponse(data = data)
                             if (parsedSettings != null) {
                                 Log.d(TAG, "Parsed settings on attempt $attempt")
@@ -569,7 +556,7 @@ fun AccessibilitySettingsScreen() {
                 ToneVolumeSlider()
                 SinglePodANCSwitch()
                 VolumeControlSwitch()
-                LoudSoundReductionSwitch(attManager)
+                LoudSoundReductionSwitch()
 
                 DropdownMenuComponent(
                     label = "Press Speed",
@@ -1113,7 +1100,7 @@ private fun sendTransparencySettings(
 
             val data = buffer.array()
             attManager.write(
-                0x18,
+                ATTHandles.TRANSPARENCY,
                 value = data
             )
         } catch (e: IOException) {

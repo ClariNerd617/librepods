@@ -88,6 +88,7 @@ import me.kavishdevar.librepods.constants.StemAction
 import me.kavishdevar.librepods.constants.isHeadTrackingData
 import me.kavishdevar.librepods.utils.AACPManager
 import me.kavishdevar.librepods.utils.AACPManager.Companion.StemPressType
+import me.kavishdevar.librepods.utils.ATTManager
 import me.kavishdevar.librepods.utils.BLEManager
 import me.kavishdevar.librepods.utils.BluetoothConnectionManager
 import me.kavishdevar.librepods.utils.CrossDevice
@@ -148,6 +149,7 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
     var macAddress = ""
     var localMac = ""
     lateinit var aacpManager: AACPManager
+    var attManager: ATTManager? = null
     var cameraActive = false
     private var disconnectedBecauseReversed = false
     data class ServiceConfig(
@@ -634,6 +636,8 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                     isConnectedLocally = false
                     popupShown = false
                     updateNotificationContent(false)
+                    attManager?.disconnect()
+                    attManager = null
                 }
             }
         }
@@ -2293,6 +2297,9 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
                             this@AirPodsService.device = device
 
                             BluetoothConnectionManager.setCurrentConnection(socket, device)
+
+                            attManager = ATTManager(device)
+                            attManager!!.connect()
 
                             updateNotificationContent(
                                 true,

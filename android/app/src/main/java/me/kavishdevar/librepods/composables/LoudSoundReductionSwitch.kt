@@ -50,26 +50,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.R
+import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.ATTManager
+import me.kavishdevar.librepods.utils.ATTHandles
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
-fun LoudSoundReductionSwitch(attManager: ATTManager) {
+fun LoudSoundReductionSwitch() {
     var loudSoundReductionEnabled by remember {
         mutableStateOf(
             false
         )
     }
+    val attManager = ServiceManager.getService()?.attManager ?: throw IllegalStateException("ATTManager not available")
     LaunchedEffect(Unit) {
-        while (attManager.socket?.isConnected != true) {
-            delay(100)
-        }
-        attManager.enableNotifications(0x1b)
+        attManager.enableNotifications(ATTHandles.LOUD_SOUND_REDUCTION)
 
         var parsed = false
         for (attempt in 1..3) {
             try {
-                val data = attManager.read(0x1b)
+                val data = attManager.read(ATTHandles.LOUD_SOUND_REDUCTION)
                 if (data.size == 2) {
                     loudSoundReductionEnabled = data[1].toInt() != 0
                     Log.d("LoudSoundReduction", "Read attempt $attempt: enabled=${loudSoundReductionEnabled}")
@@ -90,7 +90,7 @@ fun LoudSoundReductionSwitch(attManager: ATTManager) {
 
     LaunchedEffect(loudSoundReductionEnabled) {
         if (attManager.socket?.isConnected != true) return@LaunchedEffect
-        attManager.write(0x1b, if (loudSoundReductionEnabled) byteArrayOf(1) else byteArrayOf(0))
+        attManager.write(ATTHandles.LOUD_SOUND_REDUCTION, if (loudSoundReductionEnabled) byteArrayOf(1) else byteArrayOf(0))
     }
 
     val loudSoundListener = remember {
@@ -107,12 +107,12 @@ fun LoudSoundReductionSwitch(attManager: ATTManager) {
     }
 
     LaunchedEffect(Unit) {
-        attManager.registerListener(0x1b, loudSoundListener)
+        attManager.registerListener(ATTHandles.LOUD_SOUND_REDUCTION, loudSoundListener)
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            attManager.unregisterListener(0x1b, loudSoundListener)
+            attManager.unregisterListener(ATTHandles.LOUD_SOUND_REDUCTION, loudSoundListener)
         }
     }
 

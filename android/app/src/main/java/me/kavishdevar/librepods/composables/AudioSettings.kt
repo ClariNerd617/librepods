@@ -42,31 +42,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.services.ServiceManager
-import me.kavishdevar.librepods.utils.ATTManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
 fun AudioSettings() {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
-    val attManager = ATTManager(ServiceManager.getService()?.device?: throw IllegalStateException("No device connected"))
-    DisposableEffect(attManager) {
-        onDispose {
-            try {
-                attManager.disconnect()
-            } catch (e: Exception) {
-                Log.w("AirPodsAudioSettings", "Error while disconnecting ATTManager: ${e.message}")
-            }
-        }
-    }
-    LaunchedEffect(Unit) {
-        Log.d("AirPodsAudioSettings", "Connecting to ATT...")
-        try {
-            attManager.connect()
-        } catch (e: Exception) {
-            Log.w("AirPodsAudioSettings", "Error while connecting ATTManager: ${e.message}")
-        }
-    }
 
     Text(
         text = stringResource(R.string.audio).uppercase(),
@@ -103,7 +84,7 @@ fun AudioSettings() {
                 .padding(start = 12.dp, end = 0.dp)
         )
 
-        LoudSoundReductionSwitch(attManager)
+        LoudSoundReductionSwitch()
         HorizontalDivider(
             thickness = 1.5.dp,
             color = Color(0x40888888),

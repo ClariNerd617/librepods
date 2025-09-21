@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.services.ServiceManager
-import me.kavishdevar.librepods.utils.ATTManager
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable

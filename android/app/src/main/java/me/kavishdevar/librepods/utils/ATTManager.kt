@@ -37,6 +37,18 @@ import java.io.OutputStream
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
+enum class ATTHandles(val value: Int) {
+    TRANSPARENCY(0x18),
+    LOUD_SOUND_REDUCTION(0x1b),
+    HEARING_AID(0x2a),
+}
+
+enum class ATTCCCDHandles(val value: Int) {
+    TRANSPARENCY(ATTHandles.TRANSPARENCY.value + 1),
+    LOUD_SOUND_REDUCTION(ATTHandles.LOUD_SOUND_REDUCTION.value + 1),
+    HEARING_AID(ATTHandles.HEARING_AID.value + 1),
+}
+
 class ATTManager(private val device: BluetoothDevice) {
     companion object {
         private const val TAG = "ATTManager"
@@ -103,30 +115,43 @@ class ATTManager(private val device: BluetoothDevice) {
         }
     }
 
-    fun registerListener(handle: Int, listener: (ByteArray) -> Unit) {
-        listeners.getOrPut(handle) { mutableListOf() }.add(listener)
+    fun registerListener(handle: ATTHandles, listener: (ByteArray) -> Unit) {
+        listeners.getOrPut(handle.value) { mutableListOf() }.add(listener)
     }
 
-    fun unregisterListener(handle: Int, listener: (ByteArray) -> Unit) {
-        listeners[handle]?.remove(listener)
+    fun unregisterListener(handle: ATTHandles, listener: (ByteArray) -> Unit) {
+        listeners[handle.value]?.remove(listener)
     }
 
-    fun enableNotifications(handle: Int) {
-        write(handle + 1, byteArrayOf(0x01, 0x00))
+    fun enableNotifications(handle: ATTHandles) {
+        write(ATTCCCDHandles.valueOf(handle.name), byteArrayOf(0x01, 0x00))
     }
 
-    fun read(handle: Int): ByteArray {
-        val lsb = (handle and 0xFF).toByte()
-        val msb = ((handle shr 8) and 0xFF).toByte()
+    fun read(handle: ATTHandles): ByteArray {
+        val lsb = (handle.value and 0xFF).toByte()
+        val msb = ((handle.value shr 8) and 0xFF).toByte()
         val pdu = byteArrayOf(OPCODE_READ_REQUEST, lsb, msb)
         writeRaw(pdu)
         // wait for response placed into responses queue by the reader coroutine
         return readResponse()
     }
 
-    fun write(handle: Int, value: ByteArray) {
-        val lsb = (handle and 0xFF).toByte()
-        val msb = ((handle shr 8) and 0xFF).toByte()
+    fun write(handle: ATTHandles, value: ByteArray) {
+        val lsb = (handle.value and 0xFF).toByte()
+        val msb = ((handle.value shr 8) and 0xFF).toByte()
+        val pdu = byteArrayOf(OPCODE_WRITE_REQUEST, lsb, msb) + value
+        writeRaw(pdu)
+        // usually a Write Response (0x13) will arrive; wait for it (but discard return)
+        try {
+            readResponse()
+        } catch (e: Exception) {
+            Log.w(TAG, "No write response received: ${e.message}")
+        }
+    }
+
+    fun write(handle: ATTCCCDHandles, value: ByteArray) {
+        val lsb = (handle.value and 0xFF).toByte()
+        val msb = ((handle.value shr 8) and 0xFF).toByte()
         val pdu = byteArrayOf(OPCODE_WRITE_REQUEST, lsb, msb) + value
         writeRaw(pdu)
         // usually a Write Response (0x13) will arrive; wait for it (but discard return)
