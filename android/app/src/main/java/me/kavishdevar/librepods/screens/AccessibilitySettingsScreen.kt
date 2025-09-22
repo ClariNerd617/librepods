@@ -106,6 +106,9 @@ import me.kavishdevar.librepods.utils.ATTManager
 import me.kavishdevar.librepods.utils.ATTHandles
 import me.kavishdevar.librepods.utils.AACPManager
 import me.kavishdevar.librepods.utils.RadareOffsetFinder
+import me.kavishdevar.librepods.utils.TransparencySettings
+import me.kavishdevar.librepods.utils.parseTransparencySettingsResponse
+import me.kavishdevar.librepods.utils.sendTransparencySettings
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -1136,182 +1139,6 @@ fun AccessibilityToggle(text: String, mutableState: MutableState<Boolean>, indep
     }
 }
 
-private data class TransparencySettings (
-    val enabled: Boolean,
-    val leftEQ: FloatArray,
-    val rightEQ: FloatArray,
-    val leftAmplification: Float,
-    val rightAmplification: Float,
-    val leftTone: Float,
-    val rightTone: Float,
-    val leftConversationBoost: Boolean,
-    val rightConversationBoost: Boolean,
-    val leftAmbientNoiseReduction: Float,
-    val rightAmbientNoiseReduction: Float,
-    val netAmplification: Float,
-    val balance: Float
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as TransparencySettings
-
-        if (enabled != other.enabled) return false
-        if (leftAmplification != other.leftAmplification) return false
-        if (rightAmplification != other.rightAmplification) return false
-        if (leftTone != other.leftTone) return false
-        if (rightTone != other.rightTone) return false
-        if (leftConversationBoost != other.leftConversationBoost) return false
-        if (rightConversationBoost != other.rightConversationBoost) return false
-        if (leftAmbientNoiseReduction != other.leftAmbientNoiseReduction) return false
-        if (rightAmbientNoiseReduction != other.rightAmbientNoiseReduction) return false
-        if (!leftEQ.contentEquals(other.leftEQ)) return false
-        if (!rightEQ.contentEquals(other.rightEQ)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = enabled.hashCode()
-        result = 31 * result + leftAmplification.hashCode()
-        result = 31 * result + rightAmplification.hashCode()
-        result = 31 * result + leftTone.hashCode()
-        result = 31 * result + rightTone.hashCode()
-        result = 31 * result + leftConversationBoost.hashCode()
-        result = 31 * result + rightConversationBoost.hashCode()
-        result = 31 * result + leftAmbientNoiseReduction.hashCode()
-        result = 31 * result + rightAmbientNoiseReduction.hashCode()
-        result = 31 * result + leftEQ.contentHashCode()
-        result = 31 * result + rightEQ.contentHashCode()
-        return result
-    }
-}
-
-private fun parseTransparencySettingsResponse(data: ByteArray): TransparencySettings? {
-    val settingsData = data.copyOfRange(1, data.size)
-    val buffer = ByteBuffer.wrap(settingsData).order(ByteOrder.LITTLE_ENDIAN)
-
-    val enabled = buffer.float
-    Log.d(TAG, "Parsed enabled: $enabled")
-
-    val leftEQ = FloatArray(8)
-    for (i in 0..7) {
-        leftEQ[i] = buffer.float
-        Log.d(TAG, "Parsed left EQ${i+1}: ${leftEQ[i]}")
-    }
-    val leftAmplification = buffer.float
-    Log.d(TAG, "Parsed left amplification: $leftAmplification")
-    val leftTone = buffer.float
-    Log.d(TAG, "Parsed left tone: $leftTone")
-    val leftConvFloat = buffer.float
-    val leftConversationBoost = leftConvFloat > 0.5f
-    Log.d(TAG, "Parsed left conversation boost: $leftConvFloat ($leftConversationBoost)")
-    val leftAmbientNoiseReduction = buffer.float
-    Log.d(TAG, "Parsed left ambient noise reduction: $leftAmbientNoiseReduction")
-
-    val rightEQ = FloatArray(8)
-    for (i in 0..7) {
-        rightEQ[i] = buffer.float
-        Log.d(TAG, "Parsed right EQ${i+1}: ${rightEQ[i]}")
-    }
-
-    val rightAmplification = buffer.float
-    Log.d(TAG, "Parsed right amplification: $rightAmplification")
-    val rightTone = buffer.float
-    Log.d(TAG, "Parsed right tone: $rightTone")
-    val rightConvFloat = buffer.float
-    val rightConversationBoost = rightConvFloat > 0.5f
-    Log.d(TAG, "Parsed right conversation boost: $rightConvFloat ($rightConversationBoost)")
-    val rightAmbientNoiseReduction = buffer.float
-    Log.d(TAG, "Parsed right ambient noise reduction: $rightAmbientNoiseReduction")
-
-    Log.d(TAG, "Settings parsed successfully")
-
-    val avg = (leftAmplification + rightAmplification) / 2
-    val amplification = avg.coerceIn(-1f, 1f)
-    val diff = rightAmplification - leftAmplification
-    val balance = diff.coerceIn(-1f, 1f)
-
-    return TransparencySettings(
-        enabled = enabled > 0.5f,
-        leftEQ = leftEQ,
-        rightEQ = rightEQ,
-        leftAmplification = leftAmplification,
-        rightAmplification = rightAmplification,
-        leftTone = leftTone,
-        rightTone = rightTone,
-        leftConversationBoost = leftConversationBoost,
-        rightConversationBoost = rightConversationBoost,
-        leftAmbientNoiseReduction = leftAmbientNoiseReduction,
-        rightAmbientNoiseReduction = rightAmbientNoiseReduction,
-        netAmplification = amplification,
-        balance = balance
-    )
-}
-
-private fun sendTransparencySettings(
-    attManager: ATTManager,
-    transparencySettings: TransparencySettings
-) {
-    debounceJob?.cancel()
-    debounceJob = CoroutineScope(Dispatchers.IO).launch {
-        delay(100)
-        try {
-            val buffer = ByteBuffer.allocate(100).order(ByteOrder.LITTLE_ENDIAN)
-
-            Log.d(TAG,
-                "Sending settings: $transparencySettings"
-            )
-
-            buffer.putFloat(if (transparencySettings.enabled) 1.0f else 0.0f)
-
-            for (eq in transparencySettings.leftEQ) {
-                buffer.putFloat(eq)
-            }
-            buffer.putFloat(transparencySettings.leftAmplification)
-            buffer.putFloat(transparencySettings.leftTone)
-            buffer.putFloat(if (transparencySettings.leftConversationBoost) 1.0f else 0.0f)
-            buffer.putFloat(transparencySettings.leftAmbientNoiseReduction)
-
-            for (eq in transparencySettings.rightEQ) {
-                buffer.putFloat(eq)
-            }
-            buffer.putFloat(transparencySettings.rightAmplification)
-            buffer.putFloat(transparencySettings.rightTone)
-            buffer.putFloat(if (transparencySettings.rightConversationBoost) 1.0f else 0.0f)
-            buffer.putFloat(transparencySettings.rightAmbientNoiseReduction)
-
-            val data = buffer.array()
-            attManager.write(
-                ATTHandles.TRANSPARENCY,
-                value = data
-            )
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-    }
-}
-
-// Debounced send helper for phone/media EQ (if needed elsewhere)
-private fun sendPhoneMediaEQ(aacpManager: me.kavishdevar.librepods.utils.AACPManager?, eq: FloatArray, phoneEnabled: Boolean, mediaEnabled: Boolean) {
-    phoneMediaDebounceJob?.cancel()
-    phoneMediaDebounceJob = CoroutineScope(Dispatchers.IO).launch {
-        delay(100)
-        try {
-            if (aacpManager == null) {
-                Log.w(TAG, "AACPManger is null; cannot send phone/media EQ")
-                return@launch
-            }
-            val phoneByte = if (phoneEnabled) 0x01.toByte() else 0x02.toByte()
-            val mediaByte = if (mediaEnabled) 0x01.toByte() else 0x02.toByte()
-            aacpManager.sendPhoneMediaEQ(eq, phoneByte, mediaByte)
-        } catch (e: Exception) {
-            Log.w(TAG, "Error in sendPhoneMediaEQ: ${e.message}")
-        }
-    }
-}
-
 private fun snapIfClose(value: Float, points: List<Float>, threshold: Float = 0.05f): Float {
     val nearest = points.minByOrNull { kotlin.math.abs(it - value) } ?: value
     return if (kotlin.math.abs(nearest - value) <= threshold) nearest else value
@@ -1366,6 +1193,25 @@ private fun DropdownMenuComponent(
                     text = { Text(text = option) }
                 )
             }
+        }
+    }
+}
+
+// Debounced send helper for phone/media EQ (if needed elsewhere)
+private fun sendPhoneMediaEQ(aacpManager: me.kavishdevar.librepods.utils.AACPManager?, eq: FloatArray, phoneEnabled: Boolean, mediaEnabled: Boolean) {
+    phoneMediaDebounceJob?.cancel()
+    phoneMediaDebounceJob = CoroutineScope(Dispatchers.IO).launch {
+        delay(100)
+        try {
+            if (aacpManager == null) {
+                Log.w(TAG, "AACPManger is null; cannot send phone/media EQ")
+                return@launch
+            }
+            val phoneByte = if (phoneEnabled) 0x01.toByte() else 0x02.toByte()
+            val mediaByte = if (mediaEnabled) 0x01.toByte() else 0x02.toByte()
+            aacpManager.sendPhoneMediaEQ(eq, phoneByte, mediaByte)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error in sendPhoneMediaEQ: ${e.message}")
         }
     }
 }

@@ -59,6 +59,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -71,14 +72,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -101,6 +103,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.composables.AccessibilitySlider
+import me.kavishdevar.librepods.composables.ConfirmationDialog
 import me.kavishdevar.librepods.composables.LoudSoundReductionSwitch
 import me.kavishdevar.librepods.composables.SinglePodANCSwitch
 import me.kavishdevar.librepods.composables.StyledSwitch
@@ -111,6 +114,9 @@ import me.kavishdevar.librepods.utils.ATTManager
 import me.kavishdevar.librepods.utils.ATTHandles
 import me.kavishdevar.librepods.utils.AACPManager
 import me.kavishdevar.librepods.utils.RadareOffsetFinder
+import me.kavishdevar.librepods.utils.TransparencySettings
+import me.kavishdevar.librepods.utils.parseTransparencySettingsResponse
+import me.kavishdevar.librepods.utils.sendTransparencySettings
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -142,6 +148,14 @@ fun HearingAidScreen(navController: NavController) {
     val activeTrackColor = if (isDarkTheme) Color(0xFF007AFF) else Color(0xFF3C6DF5)
     val thumbColor = if (isDarkTheme) Color(0xFFFFFFFF) else Color(0xFFFFFFFF)
     val labelTextColor = if (isDarkTheme) Color.White else Color.Black
+
+    val showDialog = remember { mutableStateOf(false) }
+
+    val hearingAidEnabled = remember {
+        val aidStatus = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID }
+        val assistStatus = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG }
+        mutableStateOf((aidStatus?.value?.getOrNull(1) == 0x01.toByte()) && (assistStatus?.value?.getOrNull(0) == 0x01.toByte()))
+    }
 
     Scaffold(
         containerColor = if (isSystemInDarkTheme()) Color(
@@ -202,12 +216,6 @@ fun HearingAidScreen(navController: NavController) {
                 .verticalScroll(verticalScrollState),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val hearingAidEnabled = remember {
-                val aidStatus = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID }
-                val assistStatus = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG }
-                mutableStateOf((aidStatus?.value?.getOrNull(1) == 0x01.toByte()) && (assistStatus?.value?.getOrNull(0) == 0x01.toByte()))
-            }
-
             val hearingAidListener = remember {
                 object : AACPManager.ControlCommandListener {
                     override fun onControlCommandReceived(controlCommand: AACPManager.ControlCommand) {
@@ -239,20 +247,20 @@ fun HearingAidScreen(navController: NavController) {
 
             fun onChange(value: Boolean) {
                 if (value) {
-                    // Enable and enroll if not enrolled
-                    val enrolled = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID }?.value?.getOrNull(0) == 0x01.toByte()
-                    if (!enrolled) {
-                        aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x01)) // Enroll and enable
-                    } else {
-                        aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x01)) // Enable
-                    }
-                    aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG.value, 0x01.toByte()) // Enable assist
+                    showDialog.value = true
                 } else {
-                    // Disable both, keep enrolled
-                    aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x02)) // Disable
-                    aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG.value, 0x02.toByte()) // Disable assist
+                    aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x02))
+                    aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG.value, 0x02.toByte())
+                    hearingAidEnabled.value = value
                 }
-                hearingAidEnabled.value = value
+            }
+
+            fun onAdjustPhoneChange(value: Boolean) {
+                adjustPhoneEnabled.value = value
+            }
+
+            fun onAdjustMediaChange(value: Boolean) {
+                adjustMediaEnabled.value = value
             }
 
             Text(
@@ -374,7 +382,7 @@ fun HearingAidScreen(navController: NavController) {
                                     backgroundColorAdjustMedia = if (isDarkThemeLocal) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
                                 },
                                 onTap = {
-                                    adjustMediaEnabled.value = !adjustMediaEnabled.value
+                                    onAdjustMediaChange(!adjustMediaEnabled.value)
                                 }
                             )
                         },
@@ -393,7 +401,7 @@ fun HearingAidScreen(navController: NavController) {
                     StyledSwitch(
                         checked = adjustMediaEnabled.value,
                         onCheckedChange = {
-                            adjustMediaEnabled.value = it
+                            onAdjustMediaChange(it)
                         },
                     )
                 }
@@ -419,7 +427,7 @@ fun HearingAidScreen(navController: NavController) {
                                     backgroundColorAdjustPhone = if (isDarkThemeLocal) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
                                 },
                                 onTap = {
-                                    adjustPhoneEnabled.value = !adjustPhoneEnabled.value
+                                    onAdjustPhoneChange(!adjustPhoneEnabled.value)
                                 }
                             )
                         },
@@ -438,11 +446,47 @@ fun HearingAidScreen(navController: NavController) {
                     StyledSwitch(
                         checked = adjustPhoneEnabled.value,
                         onCheckedChange = {
-                            adjustPhoneEnabled.value = it
+                            onAdjustPhoneChange(it)
                         },
                     )
                 }
             }
         }
     }
+
+    ConfirmationDialog(
+        showDialog = showDialog,
+        title = "Enable Hearing Aid",
+        message = "Enabling Hearing Aid will disable Headphone Accommodation and Customized Transparency Mode.",
+        confirmText = "Enable",
+        dismissText = "Cancel",
+        onConfirm = {
+            showDialog.value = false
+            val enrolled = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID }?.value?.getOrNull(0) == 0x01.toByte()
+            if (!enrolled) {
+                aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x01))
+            } else {
+                aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x01))
+            }
+            aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG.value, 0x01.toByte())
+            hearingAidEnabled.value = true
+            // Disable transparency mode
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val data = attManager.read(ATTHandles.TRANSPARENCY)
+                    val parsed = parseTransparencySettingsResponse(data)
+                    if (parsed != null) {
+                        val disabledSettings = parsed.copy(enabled = false)
+                        sendTransparencySettings(attManager, disabledSettings)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error disabling transparency: ${e.message}")
+                }
+            }
+        },
+        hazeState = hazeState,
+        isDarkTheme = isDarkTheme,
+        textColor = textColor,
+        activeTrackColor = activeTrackColor
+    )
 }

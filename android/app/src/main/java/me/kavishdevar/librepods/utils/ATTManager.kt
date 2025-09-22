@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit
 
 enum class ATTHandles(val value: Int) {
     TRANSPARENCY(0x18),
-    LOUD_SOUND_REDUCTION(0x1b),
-    HEARING_AID(0x2a),
+    LOUD_SOUND_REDUCTION(0x1B),
+    HEARING_AID(0x2A),
 }
 
 enum class ATTCCCDHandles(val value: Int) {
@@ -85,7 +85,7 @@ class ATTManager(private val device: BluetoothDevice) {
                     if (pdu.isNotEmpty() && pdu[0] == OPCODE_HANDLE_VALUE_NTF) {
                         // notification -> dispatch to listeners
                         val handle = (pdu[1].toInt() and 0xFF) or ((pdu[2].toInt() and 0xFF) shl 8)
-                        val value = pdu.copyOfRange(2, pdu.size)
+                        val value = pdu.copyOfRange(3, pdu.size)
                         listeners[handle]?.forEach { listener ->
                             try {
                                 listener(value)
@@ -191,7 +191,7 @@ class ATTManager(private val device: BluetoothDevice) {
                 throw IllegalStateException("No response read from ATT socket within $timeoutMs ms")
             }
             Log.d(TAG, "readResponse: ${resp.joinToString(" ") { String.format("%02X", it) }}")
-            return resp
+            return resp.copyOfRange(1, resp.size)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
             throw IllegalStateException("Interrupted while waiting for ATT response", e)

@@ -115,7 +115,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 private var debounceJob: Job? = null
 private var phoneMediaDebounceJob: Job? = null
-private const val TAG = "AccessibilitySettings"
+private const val TAG = "HearingAidAdjustments"
 
 @SuppressLint("DefaultLocale")
 @ExperimentalHazeMaterialsApi
@@ -201,6 +201,7 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
             val ambientNoiseReductionSliderValue = remember { mutableFloatStateOf(0.0f) }
             val conversationBoostEnabled = remember { mutableStateOf(false) }
             val eq = remember { mutableStateOf(FloatArray(8)) }
+            val ownVoiceAmplification = remember { mutableFloatStateOf(0.5f) }
 
             val phoneMediaEQ = remember { mutableStateOf(FloatArray(8) { 0.5f }) }
             val phoneEQEnabled = remember { mutableStateOf(false) }
@@ -214,7 +215,6 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
             val HearingAidSettings = remember {
                 mutableStateOf(
                     HearingAidSettings(
-                        enabled = enabled.value,
                         leftEQ = eq.value,
                         rightEQ = eq.value,
                         leftAmplification = amplificationSliderValue.floatValue + (0.5f - balanceSliderValue.floatValue) * amplificationSliderValue.floatValue * 2,
@@ -226,7 +226,8 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                         leftAmbientNoiseReduction = ambientNoiseReductionSliderValue.floatValue,
                         rightAmbientNoiseReduction = ambientNoiseReductionSliderValue.floatValue,
                         netAmplification = amplificationSliderValue.floatValue,
-                        balance = balanceSliderValue.floatValue
+                        balance = balanceSliderValue.floatValue,
+                        ownVoiceAmplification = ownVoiceAmplification.floatValue
                     )
                 )
             }
@@ -250,6 +251,26 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                 }
             }
 
+            val hearingAidATTListener = remember {
+                object : (ByteArray) -> Unit {
+                    override fun invoke(value: ByteArray) {
+                        val parsed = parseHearingAidSettingsResponse(value)
+                        if (parsed != null) {
+                            amplificationSliderValue.floatValue = parsed.netAmplification
+                            balanceSliderValue.floatValue = parsed.balance
+                            toneSliderValue.floatValue = parsed.leftTone
+                            ambientNoiseReductionSliderValue.floatValue = parsed.leftAmbientNoiseReduction
+                            conversationBoostEnabled.value = parsed.leftConversationBoost
+                            eq.value = parsed.leftEQ.copyOf()
+                            ownVoiceAmplification.floatValue = parsed.ownVoiceAmplification
+                            Log.d(TAG, "Updated hearing aid settings from notification")
+                        } else {
+                            Log.w(TAG, "Failed to parse hearing aid settings from notification")
+                        }
+                    }
+                }
+            }
+
             LaunchedEffect(Unit) {
                 aacpManager?.registerControlCommandListener(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID, hearingAidListener)
                 aacpManager?.registerControlCommandListener(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG, hearingAidListener)
@@ -259,10 +280,11 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                 onDispose {
                     aacpManager?.unregisterControlCommandListener(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID, hearingAidListener)
                     aacpManager?.unregisterControlCommandListener(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG, hearingAidListener)
+                    attManager.unregisterListener(ATTHandles.HEARING_AID, hearingAidATTListener)
                 }
             }
 
-            LaunchedEffect(enabled.value, amplificationSliderValue.floatValue, balanceSliderValue.floatValue, toneSliderValue.floatValue, conversationBoostEnabled.value, ambientNoiseReductionSliderValue.floatValue, eq.value, initialLoadComplete.value, initialReadSucceeded.value) {
+            LaunchedEffect(amplificationSliderValue.floatValue, balanceSliderValue.floatValue, toneSliderValue.floatValue, conversationBoostEnabled.value, ambientNoiseReductionSliderValue.floatValue, ownVoiceAmplification.floatValue, initialLoadComplete.value, initialReadSucceeded.value) {
                 if (!initialLoadComplete.value) {
                     Log.d(TAG, "Initial device load not complete - skipping send")
                     return@LaunchedEffect
@@ -274,7 +296,6 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                 }
 
                 HearingAidSettings.value = HearingAidSettings(
-                    enabled = enabled.value,
                     leftEQ = eq.value,
                     rightEQ = eq.value,
                     leftAmplification = amplificationSliderValue.floatValue + if (balanceSliderValue.floatValue < 0) -balanceSliderValue.floatValue else 0f,
@@ -286,23 +307,18 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                     leftAmbientNoiseReduction = ambientNoiseReductionSliderValue.floatValue,
                     rightAmbientNoiseReduction = ambientNoiseReductionSliderValue.floatValue,
                     netAmplification = amplificationSliderValue.floatValue,
-                    balance = balanceSliderValue.floatValue
+                    balance = balanceSliderValue.floatValue,
+                    ownVoiceAmplification = ownVoiceAmplification.floatValue
                 )
-                Log.d("HearingAidSettings", "Updated settings: ${HearingAidSettings.value}")
-                // sendHearingAidSettings(attManager, HearingAidSettings.value)
-            }
-
-            DisposableEffect(Unit) {
-                onDispose {
-                    // attManager.unregisterListener(ATTHandles.TRANSPARENCY, transparencyListener)
-                }
+                Log.d(TAG, "Updated settings: ${HearingAidSettings.value}")
+                sendHearingAidSettings(attManager, HearingAidSettings.value)
             }
 
             LaunchedEffect(Unit) {
                 Log.d(TAG, "Connecting to ATT...")
                 try {
-                    // attManager.enableNotifications(ATTHandles.TRANSPARENCY)
-                    // attManager.registerListener(ATTHandles.TRANSPARENCY, transparencyListener)
+                    attManager.enableNotifications(ATTHandles.HEARING_AID)
+                    attManager.registerListener(ATTHandles.HEARING_AID, hearingAidATTListener)
 
                     try {
                         if (aacpManager != null) {
@@ -324,12 +340,11 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                         Log.w(TAG, "Error reading EQ from AACPManager: ${e.message}")
                     }
 
-                    /*
                     var parsedSettings: HearingAidSettings? = null
                     for (attempt in 1..3) {
                         initialReadAttempts.value = attempt
                         try {
-                            val data = attManager.read(ATTHandles.TRANSPARENCY)
+                            val data = attManager.read(ATTHandles.HEARING_AID)
                             parsedSettings = parseHearingAidSettingsResponse(data = data)
                             if (parsedSettings != null) {
                                 Log.d(TAG, "Parsed settings on attempt $attempt")
@@ -344,43 +359,22 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                     }
 
                     if (parsedSettings != null) {
-                        Log.d(TAG, "Initial transparency settings: $parsedSettings")
-                        enabled.value = parsedSettings.enabled
+                        Log.d(TAG, "Initial hearing aid settings: $parsedSettings")
                         amplificationSliderValue.floatValue = parsedSettings.netAmplification
                         balanceSliderValue.floatValue = parsedSettings.balance
                         toneSliderValue.floatValue = parsedSettings.leftTone
                         ambientNoiseReductionSliderValue.floatValue = parsedSettings.leftAmbientNoiseReduction
                         conversationBoostEnabled.value = parsedSettings.leftConversationBoost
                         eq.value = parsedSettings.leftEQ.copyOf()
+                        ownVoiceAmplification.floatValue = parsedSettings.ownVoiceAmplification
                         initialReadSucceeded.value = true
                     } else {
-                        Log.d(TAG, "Failed to read/parse initial transparency settings after ${initialReadAttempts.value} attempts")
+                        Log.d(TAG, "Failed to read/parse initial hearing aid settings after ${initialReadAttempts.value} attempts")
                     }
-                    */
                 } catch (e: IOException) {
                     e.printStackTrace()
                 } finally {
                     initialLoadComplete.value = true
-                }
-            }
-
-            LaunchedEffect(phoneMediaEQ.value, phoneEQEnabled.value, mediaEQEnabled.value) {
-                phoneMediaDebounceJob?.cancel()
-                phoneMediaDebounceJob = CoroutineScope(Dispatchers.IO).launch {
-                    delay(150)
-                    val manager = ServiceManager.getService()?.aacpManager
-                    if (manager == null) {
-                        Log.w(TAG, "Cannot write EQ: AACPManager not available")
-                        return@launch
-                    }
-                    try {
-                        val phoneByte = if (phoneEQEnabled.value) 0x01.toByte() else 0x02.toByte()
-                        val mediaByte = if (mediaEQEnabled.value) 0x01.toByte() else 0x02.toByte()
-                        Log.d(TAG, "Sending phone/media EQ (phoneEnabled=${phoneEQEnabled.value}, mediaEnabled=${mediaEQEnabled.value})")
-                        manager.sendPhoneMediaEQ(phoneMediaEQ.value, phoneByte, mediaByte)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error sending phone/media EQ: ${e.message}")
-                    }
                 }
             }
 
@@ -577,7 +571,7 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             text = stringResource(R.string.less),
@@ -619,7 +613,6 @@ fun HearingAidAdjustmentsScreen(navController: NavController) {
 }
 
 private data class HearingAidSettings(
-    val enabled: Boolean,
     val leftEQ: FloatArray,
     val rightEQ: FloatArray,
     val leftAmplification: Float,
@@ -631,7 +624,8 @@ private data class HearingAidSettings(
     val leftAmbientNoiseReduction: Float,
     val rightAmbientNoiseReduction: Float,
     val netAmplification: Float,
-    val balance: Float
+    val balance: Float,
+    val ownVoiceAmplification: Float
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -639,7 +633,6 @@ private data class HearingAidSettings(
 
         other as HearingAidSettings
 
-        if (enabled != other.enabled) return false
         if (leftAmplification != other.leftAmplification) return false
         if (rightAmplification != other.rightAmplification) return false
         if (leftTone != other.leftTone) return false
@@ -650,13 +643,13 @@ private data class HearingAidSettings(
         if (rightAmbientNoiseReduction != other.rightAmbientNoiseReduction) return false
         if (!leftEQ.contentEquals(other.leftEQ)) return false
         if (!rightEQ.contentEquals(other.rightEQ)) return false
+        if (ownVoiceAmplification != other.ownVoiceAmplification) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = enabled.hashCode()
-        result = 31 * result + leftAmplification.hashCode()
+        var result = leftAmplification.hashCode()
         result = 31 * result + rightAmplification.hashCode()
         result = 31 * result + leftTone.hashCode()
         result = 31 * result + rightTone.hashCode()
@@ -666,49 +659,40 @@ private data class HearingAidSettings(
         result = 31 * result + rightAmbientNoiseReduction.hashCode()
         result = 31 * result + leftEQ.contentHashCode()
         result = 31 * result + rightEQ.contentHashCode()
+        result = 31 * result + ownVoiceAmplification.hashCode()
         return result
     }
 }
 
 private fun parseHearingAidSettingsResponse(data: ByteArray): HearingAidSettings? {
-    val settingsData = data.copyOfRange(1, data.size)
-    val buffer = ByteBuffer.wrap(settingsData).order(ByteOrder.LITTLE_ENDIAN)
+    if (data.size < 104) return null
+    val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
-    val enabled = buffer.float
-    Log.d(TAG, "Parsed enabled: $enabled")
+    val phoneEnabled = buffer.get() == 0x01.toByte()
+    val mediaEnabled = buffer.get() == 0x01.toByte()
+    buffer.getShort() // skip 0x60 0x00
 
     val leftEQ = FloatArray(8)
     for (i in 0..7) {
         leftEQ[i] = buffer.float
-        Log.d(TAG, "Parsed left EQ${i+1}: ${leftEQ[i]}")
     }
     val leftAmplification = buffer.float
-    Log.d(TAG, "Parsed left amplification: $leftAmplification")
     val leftTone = buffer.float
-    Log.d(TAG, "Parsed left tone: $leftTone")
     val leftConvFloat = buffer.float
     val leftConversationBoost = leftConvFloat > 0.5f
-    Log.d(TAG, "Parsed left conversation boost: $leftConvFloat ($leftConversationBoost)")
     val leftAmbientNoiseReduction = buffer.float
-    Log.d(TAG, "Parsed left ambient noise reduction: $leftAmbientNoiseReduction")
 
     val rightEQ = FloatArray(8)
     for (i in 0..7) {
         rightEQ[i] = buffer.float
-        Log.d(TAG, "Parsed right EQ${i+1}: $rightEQ[i]")
     }
-
     val rightAmplification = buffer.float
-    Log.d(TAG, "Parsed right amplification: $rightAmplification")
     val rightTone = buffer.float
-    Log.d(TAG, "Parsed right tone: $rightTone")
     val rightConvFloat = buffer.float
     val rightConversationBoost = rightConvFloat > 0.5f
-    Log.d(TAG, "Parsed right conversation boost: $rightConvFloat ($rightConversationBoost)")
     val rightAmbientNoiseReduction = buffer.float
-    Log.d(TAG, "Parsed right ambient noise reduction: $rightAmbientNoiseReduction")
 
-    Log.d(TAG, "Settings parsed successfully")
+    val ownVoiceAmplification = buffer.float
 
     val avg = (leftAmplification + rightAmplification) / 2
     val amplification = avg.coerceIn(-1f, 1f)
@@ -716,7 +700,6 @@ private fun parseHearingAidSettingsResponse(data: ByteArray): HearingAidSettings
     val balance = diff.coerceIn(-1f, 1f)
 
     return HearingAidSettings(
-        enabled = enabled > 0.5f,
         leftEQ = leftEQ,
         rightEQ = rightEQ,
         leftAmplification = leftAmplification,
@@ -728,7 +711,8 @@ private fun parseHearingAidSettingsResponse(data: ByteArray): HearingAidSettings
         leftAmbientNoiseReduction = leftAmbientNoiseReduction,
         rightAmbientNoiseReduction = rightAmbientNoiseReduction,
         netAmplification = amplification,
-        balance = balance
+        balance = balance,
+        ownVoiceAmplification = ownVoiceAmplification
     )
 }
 
@@ -740,55 +724,37 @@ private fun sendHearingAidSettings(
     debounceJob = CoroutineScope(Dispatchers.IO).launch {
         delay(100)
         try {
-            val buffer = ByteBuffer.allocate(100).order(ByteOrder.LITTLE_ENDIAN)
-
-            Log.d(TAG,
-                "Sending settings: $HearingAidSettings"
-            )
-
-            buffer.putFloat(if (HearingAidSettings.enabled) 1.0f else 0.0f)
-
-            for (eq in HearingAidSettings.leftEQ) {
-                buffer.putFloat(eq)
-            }
-            buffer.putFloat(HearingAidSettings.leftAmplification)
-            buffer.putFloat(HearingAidSettings.leftTone)
-            buffer.putFloat(if (HearingAidSettings.leftConversationBoost) 1.0f else 0.0f)
-            buffer.putFloat(HearingAidSettings.leftAmbientNoiseReduction)
-
-            for (eq in HearingAidSettings.rightEQ) {
-                buffer.putFloat(eq)
-            }
-            buffer.putFloat(HearingAidSettings.rightAmplification)
-            buffer.putFloat(HearingAidSettings.rightTone)
-            buffer.putFloat(if (HearingAidSettings.rightConversationBoost) 1.0f else 0.0f)
-            buffer.putFloat(HearingAidSettings.rightAmbientNoiseReduction)
-
-            val data = buffer.array()
-            attManager.write(
-                ATTHandles.TRANSPARENCY,
-                value = data
-            )
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-    }
-}
-
-private fun sendPhoneMediaEQ(aacpManager: me.kavishdevar.librepods.utils.AACPManager?, eq: FloatArray, phoneEnabled: Boolean, mediaEnabled: Boolean) {
-    phoneMediaDebounceJob?.cancel()
-    phoneMediaDebounceJob = CoroutineScope(Dispatchers.IO).launch {
-        delay(100)
-        try {
-            if (aacpManager == null) {
-                Log.w(TAG, "AACPManger is null; cannot send phone/media EQ")
+            val currentData = attManager.read(ATTHandles.HEARING_AID)
+            Log.d(TAG, "Current data before update: ${currentData.joinToString(" ") { String.format("%02X", it) }}")
+            if (currentData.size < 104) {
+                Log.w(TAG, "Current data size ${currentData.size} too small, cannot send settings")
                 return@launch
             }
-            val phoneByte = if (phoneEnabled) 0x01.toByte() else 0x02.toByte()
-            val mediaByte = if (mediaEnabled) 0x01.toByte() else 0x02.toByte()
-            aacpManager.sendPhoneMediaEQ(eq, phoneByte, mediaByte)
-        } catch (e: Exception) {
-            Log.w(TAG, "Error in sendPhoneMediaEQ: ${e.message}")
+            val buffer = ByteBuffer.wrap(currentData).order(ByteOrder.LITTLE_ENDIAN)
+
+            // for some reason
+            buffer.put(2, 0x64)
+
+            // Left ear adjustments
+            buffer.putFloat(36, HearingAidSettings.leftAmplification)
+            buffer.putFloat(40, HearingAidSettings.leftTone)
+            buffer.putFloat(44, if (HearingAidSettings.leftConversationBoost) 1.0f else 0.0f)
+            buffer.putFloat(48, HearingAidSettings.leftAmbientNoiseReduction)
+
+            // Right ear adjustments
+            buffer.putFloat(84, HearingAidSettings.rightAmplification)
+            buffer.putFloat(88, HearingAidSettings.rightTone)
+            buffer.putFloat(92, if (HearingAidSettings.rightConversationBoost) 1.0f else 0.0f)
+            buffer.putFloat(96, HearingAidSettings.rightAmbientNoiseReduction)
+
+            // Own voice amplification
+            buffer.putFloat(100, HearingAidSettings.ownVoiceAmplification)
+
+            Log.d(TAG, "Sending updated settings: ${currentData.joinToString(" ") { String.format("%02X", it) }}")
+
+            attManager.write(ATTHandles.HEARING_AID, currentData)
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
     }
 }

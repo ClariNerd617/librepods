@@ -70,14 +70,10 @@ fun LoudSoundReductionSwitch() {
         for (attempt in 1..3) {
             try {
                 val data = attManager.read(ATTHandles.LOUD_SOUND_REDUCTION)
-                if (data.size == 2) {
-                    loudSoundReductionEnabled = data[1].toInt() != 0
-                    Log.d("LoudSoundReduction", "Read attempt $attempt: enabled=${loudSoundReductionEnabled}")
-                    parsed = true
-                    break
-                } else {
-                    Log.d("LoudSoundReduction", "Read attempt $attempt returned empty data")
-                }
+                loudSoundReductionEnabled = data[0].toInt() != 0
+                Log.d("LoudSoundReduction", "Read attempt $attempt: enabled=${loudSoundReductionEnabled}")
+                parsed = true
+                break
             } catch (e: Exception) {
                 Log.w("LoudSoundReduction", "Read attempt $attempt failed: ${e.message}")
             }
