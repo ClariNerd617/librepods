@@ -70,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.kyant.backdrop.backdrop
+import com.kyant.backdrop.rememberBackdrop
 import dev.chrisbanes.haze.HazeEffectScope
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
@@ -78,7 +80,6 @@ import dev.chrisbanes.haze.materials.CupertinoMaterials
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.composables.ConfirmationDialog
@@ -90,8 +91,6 @@ import me.kavishdevar.librepods.utils.parseTransparencySettingsResponse
 import me.kavishdevar.librepods.utils.sendTransparencySettings
 import kotlin.io.encoding.ExperimentalEncodingApi
 
-private var debounceJob: Job? = null
-private var phoneMediaDebounceJob: Job? = null
 private const val TAG = "AccessibilitySettings"
 
 @SuppressLint("DefaultLocale")
@@ -109,6 +108,7 @@ fun HearingAidScreen(navController: NavController) {
     val aacpManager = remember { ServiceManager.getService()?.aacpManager }
 
     val showDialog = remember { mutableStateOf(false) }
+    val backdrop = rememberBackdrop()
 
     val hearingAidEnabled = remember {
         val aidStatus = aacpManager?.controlCommandStatusList?.find { it.identifier == AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID }
@@ -164,7 +164,9 @@ fun HearingAidScreen(navController: NavController) {
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = Modifier
+            .backdrop(backdrop)
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -210,7 +212,7 @@ fun HearingAidScreen(navController: NavController) {
                 } else {
                     aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_AID.value, byteArrayOf(0x01, 0x02))
                     aacpManager?.sendControlCommand(AACPManager.Companion.ControlCommandIdentifiers.HEARING_ASSIST_CONFIG.value, 0x02.toByte())
-                    hearingAidEnabled.value = value
+                    hearingAidEnabled.value = false
                 }
             }
 
@@ -450,6 +452,6 @@ fun HearingAidScreen(navController: NavController) {
                 }
             }
         },
-        hazeState = hazeState
+        backdrop = backdrop
     )
 }

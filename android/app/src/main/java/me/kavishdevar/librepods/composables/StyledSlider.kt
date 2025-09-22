@@ -133,16 +133,18 @@ fun StyledSlider(
     val density = LocalDensity.current
 
     val content = @Composable {
-        Box(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier.fillMaxWidth(if (startIcon == null && endIcon == null) 0.95f else 1f)
+            ) {
             Box(Modifier
                 .backdrop(sliderBackdrop)
                 .fillMaxWidth()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth(1f)
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (label != null) {
                         Text(
@@ -152,13 +154,14 @@ fun StyledSlider(
                                 fontWeight = FontWeight.Medium,
                                 color = labelTextColor,
                                 fontFamily = FontFamily(Font(R.font.sf_pro))
-                            )
+                            ),
                         )
                     }
 
                     if (startLabel != null || endLabel != null) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
@@ -183,7 +186,10 @@ fun StyledSlider(
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .then(if (startIcon == null && endIcon == null) Modifier.padding(horizontal = 12.dp) else Modifier),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
@@ -191,7 +197,7 @@ fun StyledSlider(
                             Text(
                                 text = startIcon,
                                 style = TextStyle(
-                                    fontSize = 16.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Normal,
                                     color = labelTextColor,
                                     fontFamily = FontFamily(Font(R.font.sf_pro))
@@ -240,7 +246,7 @@ fun StyledSlider(
                             Text(
                                 text = endIcon,
                                 style = TextStyle(
-                                    fontSize = 16.sp,
+                                    fontSize = 18.sp,
                                     fontWeight = FontWeight.Normal,
                                     color = labelTextColor,
                                     fontFamily = FontFamily(Font(R.font.sf_pro))
@@ -260,10 +266,10 @@ fun StyledSlider(
                 Modifier
                     .graphicsLayer {
                         val startOffset =
-                            if (startIcon != null) startIconWidthState.floatValue + with(density) { 24.dp.toPx() } else 0f
+                            if (startIcon != null) startIconWidthState.floatValue + with(density) { 24.dp.toPx() } else with(density) { 8.dp.toPx() }
                         translationX =
                             startOffset + fraction * trackWidthState.floatValue - size.width / 2f
-                        translationY = trackPositionState.floatValue / 2f
+                        translationY =  if (startLabel != null || endLabel != null) trackPositionState.floatValue + with(density) { 22.dp.toPx() } + size.height / 2f else trackPositionState.floatValue + with(density) { 4.dp.toPx() }
                     }
                     .draggable(
                         rememberDraggableState { delta ->
@@ -372,13 +378,13 @@ private fun snapIfClose(value: Float, points: List<Float>, threshold: Float = 0.
     return if (kotlin.math.abs(nearest - value) <= threshold) nearest else value
 }
 
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun StyledSliderPreview() {
     val a = remember { mutableFloatStateOf(1f) }
     Box(
         Modifier
-            .background(if (isSystemInDarkTheme()) Color(0xFF121212) else Color(0xFFF0F0F0))
+            .background(if (isSystemInDarkTheme()) Color(0xFF000000) else Color(0xFFF0F0F0))
             .padding(16.dp)
             .fillMaxSize()
     ) {
@@ -393,8 +399,8 @@ fun StyledSliderPreview() {
                 },
                 valueRange = 0f..2f,
                 independent = true,
-                startIcon = "A",
-                endIcon = "B"
+                startLabel = "A",
+                endLabel = "B"
             )
         }
     }

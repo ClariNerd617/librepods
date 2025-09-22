@@ -1,47 +1,39 @@
 package me.kavishdevar.librepods.composables
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidthIn
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.materials.CupertinoMaterials
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorFilter
+import com.kyant.backdrop.effects.refraction
 import me.kavishdevar.librepods.R
 
-@ExperimentalHazeMaterialsApi
 @Composable
 fun ConfirmationDialog(
     showDialog: MutableState<Boolean>,
@@ -51,133 +43,100 @@ fun ConfirmationDialog(
     dismissText: String = "Cancel",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit = { showDialog.value = false },
-    hazeState: HazeState,
+    backdrop: Backdrop,
 ) {
-    val isDarkTheme = isSystemInDarkTheme()
-    val textColor = if (isDarkTheme) Color.White else Color.Black
-    val accentColor = if (isDarkTheme) Color(0xFF007AFF) else Color(0xFF3C6DF5)
     if (showDialog.value) {
-        Dialog(onDismissRequest = { showDialog.value = false }) {
+        val isLightTheme = !isSystemInDarkTheme()
+        val contentColor = if (isLightTheme) Color.Black else Color.White
+        val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
+        val containerColor = if (isLightTheme) Color(0xFFFAFAFA).copy(0.6f) else Color(0xFF121212).copy(0.4f)
+        val dimColor = if (isLightTheme) Color(0xFF29293A).copy(0.23f) else Color(0xFF121212).copy(0.56f)
+
+        Box(
+            Modifier
+                .background(dimColor)
+                .fillMaxSize()
+                .clickable(onClick = onDismiss)
+        ) {
             Box(
-                modifier = Modifier
+                Modifier
+                    .align(Alignment.Center)
+                    .drawBackdrop(
+                        backdrop,
+                        { RoundedCornerShape(48f.dp) },
+//                        highlight = { Highlight { HighlightStyle.Solid } },
+                        onDrawSurface = { drawRect(containerColor) }
+                    ) {
+                        colorFilter(
+                            brightness = if (isLightTheme) 0.2f else 0.1f,
+                            saturation = 1.5f
+                        )
+                        blur(if (isLightTheme) 16f.dp.toPx() else 8f.dp.toPx())
+                        refraction(24f.dp.toPx(), 48f.dp.toPx(), true)
+                    }
                     .fillMaxWidth(0.75f)
                     .requiredWidthIn(min = 200.dp, max = 360.dp)
-                    .background(Color.Transparent, RoundedCornerShape(14.dp))
-                    .clip(RoundedCornerShape(14.dp))
-                    .hazeEffect(
-                        hazeState,
-                        style = CupertinoMaterials.regular(
-                            containerColor = if (isDarkTheme) Color(0xFF1C1C1E).copy(alpha = 0.95f) else Color.White.copy(alpha = 0.95f)
-                        )
-                    )
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(24.dp))
+                Column(horizontalAlignment = Alignment.Start) {
+                    Spacer(modifier = Modifier.height(28.dp))
                     Text(
                         title,
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = textColor,
+                            color = contentColor,
                             fontFamily = FontFamily(Font(R.font.sf_pro))
                         ),
-                        textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         message,
                         style = TextStyle(
                             fontSize = 14.sp,
-                            color = textColor.copy(alpha = 0.8f),
+                            color = contentColor.copy(alpha = 0.8f),
                             fontFamily = FontFamily(Font(R.font.sf_pro))
                         ),
-                        textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(
-                        thickness = 1.dp,
-                        color = Color(0x40888888),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    var leftPressed by remember { mutableStateOf(false) }
-                    var rightPressed by remember { mutableStateOf(false) }
-                    val pressedColor = if (isDarkTheme) Color(0x40888888) else Color(0x40D9D9D9)
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        val position = event.changes.first().position
-                                        val width = size.width.toFloat()
-                                        val height = size.height.toFloat()
-                                        val isWithinBounds = position.y >= 0 && position.y <= height
-                                        val isLeft = position.x < width / 2
-                                        event.changes.first().consume()
-                                        when (event.type) {
-                                            PointerEventType.Press -> {
-                                                if (isWithinBounds) {
-                                                    leftPressed = isLeft
-                                                    rightPressed = !isLeft
-                                                } else {
-                                                    leftPressed = false
-                                                    rightPressed = false
-                                                }
-                                            }
-                                            PointerEventType.Move -> {
-                                                if (isWithinBounds) {
-                                                    leftPressed = isLeft
-                                                    rightPressed = !isLeft
-                                                } else {
-                                                    leftPressed = false
-                                                    rightPressed = false
-                                                }
-                                            }
-                                            PointerEventType.Release -> {
-                                                if (isWithinBounds) {
-                                                    if (leftPressed) {
-                                                        onDismiss()
-                                                    } else if (rightPressed) {
-                                                        onConfirm()
-                                                    }
-                                                }
-                                                leftPressed = false
-                                                rightPressed = false
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                        horizontalArrangement = Arrangement.Start,
+                        Modifier
+                            .padding(24.dp, 12.dp, 24.dp, 24.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
-                            modifier = Modifier
+                            Modifier
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(containerColor.copy(0.2f))
+                                .clickable(onClick = onDismiss)
+                                .height(48.dp)
                                 .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (leftPressed) pressedColor else Color.Transparent),
+                                .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(dismissText, color = accentColor)
+                            Text(
+                                dismissText,
+                                style = TextStyle(contentColor, 16.sp)
+                            )
                         }
                         Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .fillMaxHeight()
-                                .background(Color(0x40888888))
-                        )
-                        Box(
-                            modifier = Modifier
+                            Modifier
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(accentColor)
+                                .clickable(onClick = onConfirm)
+                                .height(48.dp)
                                 .weight(1f)
-                                .fillMaxHeight()
-                                .background(if (rightPressed) pressedColor else Color.Transparent),
+                                .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(confirmText, color = accentColor)
+                            Text(
+                                confirmText,
+                                style = TextStyle(Color.White, 16.sp)
+                            )
                         }
                     }
                 }
