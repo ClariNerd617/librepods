@@ -294,7 +294,7 @@ fun AirPodsSettingsScreen(dev: BluetoothDevice?, service: AirPodsService,
 
                     Spacer(modifier = Modifier.height(16.dp))
                     StyledToggle(
-                        label = stringResource(R.string.off_listening_mode).uppercase(),
+                        label = stringResource(R.string.off_listening_mode),
                         controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ALLOW_OFF_OPTION,
                         description = stringResource(R.string.off_listening_mode_description)
                     )
