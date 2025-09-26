@@ -42,6 +42,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.utils.AACPManager
+import me.kavishdevar.librepods.utils.ATTHandles
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
@@ -95,7 +96,12 @@ fun AudioSettings(navController: NavController) {
                 .padding(start = 12.dp, end = 0.dp)
         )
 
-        LoudSoundReductionSwitch()
+        StyledToggle(
+            label = stringResource(R.string.loud_sound_reduction),
+            description = stringResource(R.string.loud_sound_reduction_description),
+            attHandle = ATTHandles.LOUD_SOUND_REDUCTION,
+            independent = false
+        )
         HorizontalDivider(
             thickness = 1.5.dp,
             color = Color(0x40888888),

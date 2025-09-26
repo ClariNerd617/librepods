@@ -337,9 +337,9 @@ fun HearingAidAdjustmentsScreen(@Suppress("unused") navController: NavController
                 independent = true,
             )
 
-            AccessibilityToggle(
-                text = stringResource(R.string.conversation_boost),
-                mutableState = conversationBoostEnabled,
+            StyledToggle(
+                label = stringResource(R.string.conversation_boost),
+                checkedState = conversationBoostEnabled,
                 independent = true,
                 description = stringResource(R.string.conversation_boost_description)
             )

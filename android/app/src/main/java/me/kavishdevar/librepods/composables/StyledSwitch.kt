@@ -18,26 +18,58 @@
 
 package me.kavishdevar.librepods.composables
 
-import androidx.compose.animation.core.animateDpAsState
+import android.content.res.Configuration
+import androidx.compose.animation.Animatable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.CompositingStrategy
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastCoerceIn
+import androidx.compose.ui.util.lerp
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.refractionWithDispersion
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.Shadow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun StyledSwitch(
@@ -47,42 +79,172 @@ fun StyledSwitch(
 ) {
     val isDarkTheme = isSystemInDarkTheme()
 
-    val thumbColor = Color.White
-    val trackColor = if (enabled) (
-        if (isDarkTheme) {
-            if (checked) Color(0xFF34C759) else Color(0xFF5B5B5E)
-        } else {
-            if (checked) Color(0xFF34C759) else Color(0xFFD1D1D6)
-        }
-    ) else {
-        if (isDarkTheme) Color(0xFF5B5B5E) else Color(0xFFD1D1D6)
+    val onColor = if (enabled) Color(0xFF34C759) else if (isDarkTheme) Color(0xFF5B5B5E) else Color(0xFFD1D1D6)
+    val offColor = if (enabled) if (isDarkTheme) Color(0xFF5B5B5E) else Color(0xFFD1D1D6) else if (isDarkTheme) Color(0xFF5B5B5E) else Color(0xFFD1D1D6)
+
+    val trackWidth = 70.dp
+    val trackHeight = 31.dp
+    val thumbHeight = 27.dp
+    val thumbWidth = 36.dp
+
+    val backdrop = rememberLayerBackdrop()
+    val switchBackdrop = rememberLayerBackdrop()
+    val fraction by remember {
+        derivedStateOf { if (checked) 1f else 0f }
     }
+    val animatedFraction = remember { Animatable(fraction) }
+    val trackWidthPx = remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val animationScope = rememberCoroutineScope()
+    val progressAnimationSpec = spring(0.5f, 300f, 0.001f)
+    val colorAnimationSpec = tween<Color>(300, easing = FastOutSlowInEasing)
+    val progressAnimation = remember { Animatable(0f) }
+    val innerShadowLayer = rememberGraphicsLayer().apply {
+        compositingStrategy = CompositingStrategy.Offscreen
+    }
+    val animatedTrackColor = remember { Animatable(if (checked) onColor else offColor) }
 
-
-    val thumbOffsetX by animateDpAsState(targetValue = if (checked) 20.dp else 0.dp, label = "Test")
+    LaunchedEffect(checked) {
+        val targetColor = if (checked) onColor else offColor
+        animatedTrackColor.animateTo(targetColor, colorAnimationSpec)
+        val targetFrac = if (checked) 1f else 0f
+        animatedFraction.animateTo(targetFrac, progressAnimationSpec)
+    }
 
     Box(
         modifier = Modifier
-            .width(51.dp)
-            .height(31.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(trackColor) // Dynamic track background
-            .padding(horizontal = 3.dp),
+            .width(trackWidth)
+            .height(trackHeight),
         contentAlignment = Alignment.CenterStart
     ) {
         Box(
             modifier = Modifier
-                .offset(x = thumbOffsetX)
-                .size(27.dp)
-                .clip(CircleShape)
-                .background(thumbColor)
-                .clickable { if (enabled) onCheckedChange(!checked) }
+                .layerBackdrop(switchBackdrop)
+                .clip(RoundedCornerShape(trackHeight / 2))
+                .background(animatedTrackColor.value)
+                .width(trackWidth)
+                .height(trackHeight)
+                .onSizeChanged { trackWidthPx.floatValue = it.width.toFloat() }
+        )
+
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 2.dp)
+                .graphicsLayer {
+                    translationX = animatedFraction.value * (trackWidthPx.floatValue - with(density) { thumbWidth.toPx() + 4.dp.toPx() })
+                }
+                .then(if (enabled) Modifier.draggable(
+                    rememberDraggableState { delta ->
+                        if (trackWidthPx.floatValue > 0f) {
+                            val newFraction = (animatedFraction.value + delta / trackWidthPx.floatValue).fastCoerceIn(0f, 1f)
+                            animationScope.launch {
+                                animatedFraction.snapTo(newFraction)
+                            }
+                            val newChecked = newFraction >= 0.5f
+                            if (newChecked != checked) {
+                                onCheckedChange(newChecked)
+                            }
+                        }
+                    },
+                    Orientation.Horizontal,
+                    startDragImmediately = true,
+                    onDragStarted = {
+                        animationScope.launch {
+                            progressAnimation.animateTo(1f, progressAnimationSpec)
+                        }
+                    },
+                    onDragStopped = {
+                        animationScope.launch {
+                            progressAnimation.animateTo(0f, progressAnimationSpec)
+                            val snappedFraction = if (animatedFraction.value >= 0.5f) 1f else 0f
+                            animatedFraction.animateTo(snappedFraction, progressAnimationSpec)
+                            onCheckedChange(snappedFraction >= 0.5f)
+                        }
+                    }
+                ) else Modifier)
+                .drawBackdrop(
+                    rememberCombinedBackdrop(backdrop, switchBackdrop),
+                    { RoundedCornerShape(thumbHeight / 2) },
+                    highlight = {
+                        val progress = progressAnimation.value
+                        Highlight.AmbientDefault.copy(alpha = progress)
+                    },
+                    shadow = {
+                        Shadow(
+                            radius = 4f.dp,
+                            color = Color.Black.copy(0.05f)
+                        )
+                    },
+                    layer = {
+                        val progress = progressAnimation.value
+                        val scale = lerp(1f, 2f, progress)
+                        scaleX = scale
+                        scaleY = scale
+                    },
+                    onDrawSurface = {
+                        val progress = progressAnimation.value.fastCoerceIn(0f, 1f)
+
+                        val shape = RoundedCornerShape(thumbHeight / 2)
+                        val outline = shape.createOutline(size, layoutDirection, this)
+                        val innerShadowOffset = 4f.dp.toPx()
+                        val innerShadowBlurRadius = 4f.dp.toPx()
+
+                        innerShadowLayer.alpha = progress
+                        innerShadowLayer.renderEffect =
+                            BlurEffect(
+                                innerShadowBlurRadius,
+                                innerShadowBlurRadius,
+                                TileMode.Decal
+                            )
+                        innerShadowLayer.record {
+                            drawOutline(outline, Color.Black.copy(0.2f))
+                            translate(0f, innerShadowOffset) {
+                                drawOutline(
+                                    outline,
+                                    Color.Transparent,
+                                    blendMode = BlendMode.Clear
+                                )
+                            }
+                        }
+                        drawLayer(innerShadowLayer)
+
+                        drawRect(Color.White.copy(1f - progress))
+                    },
+                    effects = {
+                        refractionWithDispersion(6f.dp.toPx(), size.height / 2f)
+                    }
+                )
+                .width(thumbWidth)
+                .height(thumbHeight)
         )
     }
 }
 
-@Preview
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun StyledSwitchPreview() {
-    StyledSwitch(checked = true, onCheckedChange = {})
+    val isDarkTheme = isSystemInDarkTheme()
+    val backgroundColor = if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7)
+    Box(
+        modifier = Modifier
+            .background(backgroundColor)
+            .width(100.dp)
+            .height(100.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        val checked = remember { mutableStateOf(true) }
+        StyledSwitch(
+            checked = checked.value,
+            onCheckedChange = {
+                checked.value = it
+            },
+            enabled = true
+        )
+        LaunchedEffect(Unit) {
+            delay(1000)
+            checked.value = false
+            delay(1000)
+            checked.value = true
+        }
+    }
 }

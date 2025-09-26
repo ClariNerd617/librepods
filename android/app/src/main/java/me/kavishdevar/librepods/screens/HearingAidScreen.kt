@@ -246,13 +246,13 @@ fun HearingAidScreen(navController: NavController) {
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
-
-            AccessibilityToggle(
-                text = stringResource(R.string.media_assist),
-                mutableState = mediaAssistEnabled,
+            
+            StyledToggle(
+                title = stringResource(R.string.media_assist).uppercase(),
+                label = stringResource(R.string.media_assist),
+                checkedState = mediaAssistEnabled,
                 independent = true,
-                description = stringResource(R.string.media_assist_description),
-                title = stringResource(R.string.media_assist).uppercase()
+                description = stringResource(R.string.media_assist_description)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -377,10 +377,8 @@ fun HearingAidScreen(navController: NavController) {
                 try {
                     val data = attManager.read(ATTHandles.TRANSPARENCY)
                     val parsed = parseTransparencySettingsResponse(data)
-                    if (parsed != null) {
-                        val disabledSettings = parsed.copy(enabled = false)
-                        sendTransparencySettings(attManager, disabledSettings)
-                    }
+                    val disabledSettings = parsed.copy(enabled = false)
+                    sendTransparencySettings(attManager, disabledSettings)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error disabling transparency: ${e.message}")
                 }

@@ -6,6 +6,7 @@
     <string name="app_widget_description">See your AirPods battery status right from your home screen!</string>
     <string name="accessibility">Accessibility</string>
     <string name="tone_volume">Tone Volume</string>
+    <string name="tone_volume_description">Adjust the tone volume of sound effects played by AirPods.</string>
     <string name="audio">Audio</string>
     <string name="adaptive_audio">Adaptive Audio</string>
     <string name="customize_adaptive_audio">Customize Adaptive Audio</string>
@@ -28,7 +29,7 @@
     <string name="personalized_volume">Personalized Volume</string>
     <string name="personalized_volume_description">Adjusts the volume of media in response to your environment.</string>
     <string name="noise_cancellation_single_airpod">Noise Cancellation with Single AirPod</string>
-    <string name="noise_cancellation_single_airpod_description">Allow AirPods to be put in noise cancellation mode when only one AirPods is in your ear.</string>
+    <string name="noise_cancellation_single_airpod_description">Allow AirPods to be put in noise cancellation mode when only one AirPod is in your ear.</string>
     <string name="volume_control">Volume Control</string>
     <string name="volume_control_description">Adjust the volume by swiping up or down on the sensor located on the AirPods Pro stem.</string>
     <string name="airpods_not_connected">AirPods not connected</string>
@@ -107,8 +108,11 @@
     <string name="transparency_mode">Transparency Mode</string>
     <string name="customize_transparency_mode">Customize Transparency Mode</string>
     <string name="press_speed">Press Speed</string>
+    <string name="press_speed_description">Adjust the speed required to press two or three times on your AirPods.</string>
     <string name="press_and_hold_duration">Press and Hold Duration</string>
+    <string name="press_and_hold_duration_description">Adjust the duration required to press and hold on your AirPods</string>
     <string name="volume_swipe_speed">Volume Swipe Speed</string>
+    <string name="volume_swipe_speed_description">To prevent unintended volume adjustments, select preferred wait time between swipes.</string>
     <string name="equalizer">Equalizer</string>
     <string name="apply_eq_to">Apply EQ to</string>
     <string name="phone">Phone</string>

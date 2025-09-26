@@ -168,7 +168,8 @@ fun HeadTrackingScreen(navController: NavController) {
                 label = "Head Gestures",
                 sharedPreferences = sharedPreferences,
                 sharedPreferenceKey = "head_gestures",
-                )
+            )
+            
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 stringResource(R.string.head_gestures_details),

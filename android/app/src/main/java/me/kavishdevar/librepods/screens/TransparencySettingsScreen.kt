@@ -66,6 +66,7 @@ import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.composables.StyledIconButton
 import me.kavishdevar.librepods.composables.StyledScaffold
 import me.kavishdevar.librepods.composables.StyledSlider
+import me.kavishdevar.librepods.composables.StyledToggle
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.ATTHandles
 import me.kavishdevar.librepods.utils.RadareOffsetFinder
@@ -288,9 +289,9 @@ fun TransparencySettingsScreen(navController: NavController) {
 
             // Only show transparency mode section if SDP offset is available
             if (isSdpOffsetAvailable.value) {
-                AccessibilityToggle(
-                    text = stringResource(R.string.transparency_mode),
-                    mutableState = enabled,
+                StyledToggle(
+                    label = stringResource(R.string.transparency_mode),
+                    checkedState = enabled,
                     independent = true,
                     description = stringResource(R.string.customize_transparency_mode_description)
                 )
@@ -344,9 +345,9 @@ fun TransparencySettingsScreen(navController: NavController) {
                     independent = true,
                 )
 
-                AccessibilityToggle(
-                    text = stringResource(R.string.conversation_boost),
-                    mutableState = conversationBoostEnabled,
+                StyledToggle(
+                    label = stringResource(R.string.conversation_boost),
+                    checkedState = conversationBoostEnabled,
                     independent = true,
                     description = stringResource(R.string.conversation_boost_description)
                 )

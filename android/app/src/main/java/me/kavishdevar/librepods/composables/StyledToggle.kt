@@ -59,9 +59,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import kotlinx.coroutines.delay
 import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.AACPManager
+import me.kavishdevar.librepods.utils.ATTHandles
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
@@ -72,7 +74,8 @@ fun StyledToggle(
     checkedState: MutableState<Boolean> = remember { mutableStateOf(false) } ,
     sharedPreferenceKey: String? = null,
     sharedPreferences: SharedPreferences? = null,
-    independent: Boolean = true
+    independent: Boolean = true,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
 ) {
     val isDarkTheme = isSystemInDarkTheme()
     val textColor = if (isDarkTheme) Color.White else Color.Black
@@ -88,6 +91,7 @@ fun StyledToggle(
             }
             sharedPreferences.edit { putBoolean(sharedPreferenceKey, checked) }
         }
+        onCheckedChange?.invoke(checked)
     }
 
     if (independent) {
@@ -100,7 +104,7 @@ fun StyledToggle(
                         fontWeight = FontWeight.Light,
                         color = textColor.copy(alpha = 0.6f)
                     ),
-                    modifier = Modifier.padding(8.dp, bottom = 2.dp)
+                    modifier = Modifier.padding(8.dp, bottom = 4.dp)
                 )
             }
             Box(
@@ -232,7 +236,10 @@ fun StyledToggle(
     label: String,
     description: String? = null,
     controlCommandIdentifier: AACPManager.Companion.ControlCommandIdentifiers,
-    independent: Boolean = true
+    independent: Boolean = true,
+    sharedPreferenceKey: String? = null,
+    sharedPreferences: SharedPreferences? = null,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
 ) {
     val service = ServiceManager.getService() ?: return
     val isDarkTheme = isSystemInDarkTheme()
@@ -243,9 +250,19 @@ fun StyledToggle(
     var checked by remember { mutableStateOf(checkedValue == 1.toByte()) }
     var backgroundColor by remember { mutableStateOf(if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)) }
     val animatedBackgroundColor by animateColorAsState(targetValue = backgroundColor, animationSpec = tween(durationMillis = 500))
-
+    if (sharedPreferenceKey != null && sharedPreferences != null) {
+        checked = sharedPreferences.getBoolean(sharedPreferenceKey, checked)
+    }
     fun cb() {
         service.aacpManager.sendControlCommand(identifier = controlCommandIdentifier.value, value = checked)
+        if (sharedPreferences != null) {
+            if (sharedPreferenceKey == null) {
+                Log.e("StyledToggle", "SharedPreferenceKey is null but SharedPreferences is provided.")
+                return
+            }
+            sharedPreferences.edit { putBoolean(sharedPreferenceKey, checked) }
+        }
+        onCheckedChange?.invoke(checked)
     }
 
     val listener = remember {
@@ -277,7 +294,225 @@ fun StyledToggle(
                         fontWeight = FontWeight.Light,
                         color = textColor.copy(alpha = 0.6f)
                     ),
-                    modifier = Modifier.padding(8.dp, bottom = 2.dp)
+                    modifier = Modifier.padding(8.dp, bottom = 4.dp)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .background(animatedBackgroundColor, RoundedCornerShape(14.dp))
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                backgroundColor =
+                                    if (isDarkTheme) Color(0x40888888) else Color(0x40D9D9D9)
+                                tryAwaitRelease()
+                                backgroundColor =
+                                    if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
+                            },
+                            onTap = {
+                                checked = !checked
+                                cb()
+                            }
+                        )
+                    }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(55.dp)
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.weight(1f),
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            fontFamily = FontFamily(Font(R.font.sf_pro)),
+                            fontWeight = FontWeight.Normal,
+                            color = textColor
+                        )
+                    )
+                    StyledSwitch(
+                        checked = checked,
+                        onCheckedChange = {
+                            checked = it
+                            cb()
+                        }
+                    )
+                }
+            }
+            if (description != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7))
+                ) {
+                    Text(
+                        text = description,
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Light,
+                            color = textColor.copy(alpha = 0.6f),
+                            fontFamily = FontFamily(Font(R.font.sf_pro))
+                        )
+                    )
+                }
+            }
+        }
+    } else {
+        val isPressed = remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isPressed.value) Color(0xFFE0E0E0) else Color.Transparent
+                )
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            isPressed.value = true
+                            tryAwaitRelease()
+                            isPressed.value = false
+                        }
+                    )
+                }
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    checked = !checked
+                    cb()
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 4.dp)
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 16.sp,
+                    color = textColor
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                if (description != null) {
+                    Text(
+                        text = description,
+                        fontSize = 12.sp,
+                        color = textColor.copy(0.6f),
+                        lineHeight = 14.sp,
+                    )
+                }
+            }
+            StyledSwitch(
+                checked = checked,
+                onCheckedChange = {
+                    checked = it
+                    cb()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun StyledToggle(
+    title: String? = null,
+    label: String,
+    description: String? = null,
+    attHandle: ATTHandles,
+    independent: Boolean = true,
+    sharedPreferenceKey: String? = null,
+    sharedPreferences: SharedPreferences? = null,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
+) {
+    val attManager = ServiceManager.getService()?.attManager ?: return
+    val isDarkTheme = isSystemInDarkTheme()
+    val textColor = if (isDarkTheme) Color.White else Color.Black
+    var checked by remember { mutableStateOf(false) }
+    var backgroundColor by remember { mutableStateOf(if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)) }
+    val animatedBackgroundColor by animateColorAsState(targetValue = backgroundColor, animationSpec = tween(durationMillis = 500))
+
+    LaunchedEffect(Unit) {
+        attManager.enableNotifications(attHandle)
+
+        var parsed = false
+        for (attempt in 1..3) {
+            try {
+                val data = attManager.read(attHandle)
+                checked = data[0].toInt() != 0
+                Log.d("StyledToggle", "Read attempt $attempt for $label: enabled=$checked")
+                parsed = true
+                break
+            } catch (e: Exception) {
+                Log.w("StyledToggle", "Read attempt $attempt for $label failed: ${e.message}")
+            }
+            delay(200)
+        }
+        if (!parsed) {
+            Log.d("StyledToggle", "Failed to read state for $label after 3 attempts")
+        }
+    }
+
+    if (sharedPreferenceKey != null && sharedPreferences != null) {
+        checked = sharedPreferences.getBoolean(sharedPreferenceKey, checked)
+    }
+
+    fun cb() {
+        if (sharedPreferences != null) {
+            if (sharedPreferenceKey == null) {
+                Log.e("StyledToggle", "SharedPreferenceKey is null but SharedPreferences is provided.")
+                return
+            }
+            sharedPreferences.edit { putBoolean(sharedPreferenceKey, checked) }
+        }
+        onCheckedChange?.invoke(checked)
+    }
+
+    LaunchedEffect(checked) {
+        if (attManager.socket?.isConnected != true) return@LaunchedEffect
+        attManager.write(attHandle, if (checked) byteArrayOf(1) else byteArrayOf(0))
+    }
+
+    val listener = remember {
+        object : (ByteArray) -> Unit {
+            override fun invoke(value: ByteArray) {
+                if (value.isNotEmpty()) {
+                    checked = value[0].toInt() != 0
+                    Log.d("StyledToggle", "Updated from notification for $label: enabled=$checked")
+                } else {
+                    Log.w("StyledToggle", "Empty value in notification for $label")
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        attManager.registerListener(attHandle, listener)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            attManager.unregisterListener(attHandle, listener)
+        }
+    }
+
+    if (independent) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Light,
+                        color = textColor.copy(alpha = 0.6f)
+                    ),
+                    modifier = Modifier.padding(8.dp, bottom = 4.dp)
                 )
             }
             Box(

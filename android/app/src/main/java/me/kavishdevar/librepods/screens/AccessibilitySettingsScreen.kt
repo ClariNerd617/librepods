@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -87,17 +88,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.kavishdevar.librepods.R
-import me.kavishdevar.librepods.composables.LoudSoundReductionSwitch
 import me.kavishdevar.librepods.composables.NavigationButton
-import me.kavishdevar.librepods.composables.SinglePodANCSwitch
 import me.kavishdevar.librepods.composables.StyledDropdown
 import me.kavishdevar.librepods.composables.StyledIconButton
 import me.kavishdevar.librepods.composables.StyledScaffold
 import me.kavishdevar.librepods.composables.StyledSlider
-import me.kavishdevar.librepods.composables.StyledSwitch
-import me.kavishdevar.librepods.composables.VolumeControlSwitch
+import me.kavishdevar.librepods.composables.StyledToggle
 import me.kavishdevar.librepods.services.ServiceManager
 import me.kavishdevar.librepods.utils.AACPManager
+import me.kavishdevar.librepods.utils.ATTHandles
 import me.kavishdevar.librepods.utils.RadareOffsetFinder
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -334,8 +333,67 @@ fun AccessibilitySettingsScreen(navController: NavController) {
                 }
             }
 
+            DropdownMenuComponent(
+                label = stringResource(R.string.press_speed),
+                description = stringResource(R.string.press_speed_description),
+                options = pressSpeedOptions.values.toList(),
+                selectedOption = selectedPressSpeed?: "Default",
+                onOptionSelected = { newValue ->
+                    selectedPressSpeed = newValue
+                    aacpManager?.sendControlCommand(
+                        identifier = AACPManager.Companion.ControlCommandIdentifiers.DOUBLE_CLICK_INTERVAL.value,
+                        value = pressSpeedOptions.filterValues { it == newValue }.keys.firstOrNull()
+                            ?: 0.toByte()
+                    )
+                },
+                textColor = textColor,
+                hazeState = hazeState,
+                independent = true
+            )
+
+            DropdownMenuComponent(
+                label = stringResource(R.string.press_and_hold_duration),
+                description = stringResource(R.string.press_and_hold_duration_description),
+                options = pressAndHoldDurationOptions.values.toList(),
+                selectedOption = selectedPressAndHoldDuration?: "Default",
+                onOptionSelected = { newValue ->
+                    selectedPressAndHoldDuration = newValue
+                    aacpManager?.sendControlCommand(
+                        identifier = AACPManager.Companion.ControlCommandIdentifiers.CLICK_HOLD_INTERVAL.value,
+                        value = pressAndHoldDurationOptions.filterValues { it == newValue }.keys.firstOrNull()
+                            ?: 0.toByte()
+                    )
+                },
+                textColor = textColor,
+                hazeState = hazeState,
+                independent = true
+            )
+
+            StyledToggle(
+                title = stringResource(R.string.noise_control).uppercase(),
+                label = stringResource(R.string.noise_cancellation_single_airpod),
+                description = stringResource(R.string.noise_cancellation_single_airpod_description),
+                controlCommandIdentifier = AACPManager.Companion.ControlCommandIdentifiers.ONE_BUD_ANC_MODE,
+                independent = true,
+            )
+
+            StyledToggle(
+                label = stringResource(R.string.loud_sound_reduction),
+                description = stringResource(R.string.loud_sound_reduction_description),
+                attHandle = ATTHandles.LOUD_SOUND_REDUCTION
+            )
+
+            if (!hearingAidEnabled.value&& isSdpOffsetAvailable.value) {
+                NavigationButton(
+                    to = "transparency_customization",
+                    name = stringResource(R.string.customize_transparency_mode),
+                    navController = navController
+                )
+            }
+
             StyledSlider(
                 label = stringResource(R.string.tone_volume).uppercase(),
+                description = stringResource(R.string.tone_volume_description),
                 mutableFloatState = toneVolumeValue,
                 onValueChange = {
                     toneVolumeValue.floatValue = it
@@ -347,114 +405,25 @@ fun AccessibilitySettingsScreen(navController: NavController) {
                 independent = true
             )
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(backgroundColor, RoundedCornerShape(14.dp))
-                    .padding(top = 2.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                SinglePodANCSwitch()
-                HorizontalDivider(
-                    thickness = 1.5.dp,
-                    color = Color(0x40888888),
-                    modifier = Modifier.padding(start = 12.dp, end = 0.dp)
-                )
-
-                VolumeControlSwitch()
-                HorizontalDivider(
-                    thickness = 1.5.dp,
-                    color = Color(0x40888888),
-                    modifier = Modifier.padding(start = 12.dp, end = 0.dp)
-                )
-
-                LoudSoundReductionSwitch()
-                HorizontalDivider(
-                    thickness = 1.5.dp,
-                    color = Color(0x40888888),
-                    modifier = Modifier.padding(start = 12.dp, end = 0.dp)
-                )
-
-                DropdownMenuComponent(
-                    label = stringResource(R.string.press_speed),
-                    options = listOf(
-                        stringResource(R.string.default_option),
-                        stringResource(R.string.slower),
-                        stringResource(R.string.slowest)
-                    ),
-                    selectedOption = selectedPressSpeed.toString(),
-                    onOptionSelected = { newValue ->
-                        selectedPressSpeed = newValue
-                        aacpManager?.sendControlCommand(
-                            identifier = AACPManager.Companion.ControlCommandIdentifiers.DOUBLE_CLICK_INTERVAL.value,
-                            value = pressSpeedOptions.filterValues { it == newValue }.keys.firstOrNull()
-                                ?: 0.toByte()
-                        )
-                    },
-                    textColor = textColor,
-                    hazeState = hazeState
-                )
-                HorizontalDivider(
-                    thickness = 1.5.dp,
-                    color = Color(0x40888888),
-                    modifier = Modifier.padding(start = 12.dp, end = 0.dp)
-                )
-
-                DropdownMenuComponent(
-                    label = stringResource(R.string.press_and_hold_duration),
-                    options = listOf(
-                        stringResource(R.string.default_option),
-                        stringResource(R.string.slower),
-                        stringResource(R.string.slowest)
-                    ),
-                    selectedOption = selectedPressAndHoldDuration.toString(),
-                    onOptionSelected = { newValue ->
-                        selectedPressAndHoldDuration = newValue
-                        aacpManager?.sendControlCommand(
-                            identifier = AACPManager.Companion.ControlCommandIdentifiers.CLICK_HOLD_INTERVAL.value,
-                            value = pressAndHoldDurationOptions.filterValues { it == newValue }.keys.firstOrNull()
-                                ?: 0.toByte()
-                        )
-                    },
-                    textColor = textColor,
-                    hazeState = hazeState
-                )
-                HorizontalDivider(
-                    thickness = 1.5.dp,
-                    color = Color(0x40888888),
-                    modifier = Modifier.padding(start = 12.dp, end = 0.dp)
-                )
-
-                DropdownMenuComponent(
-                    label = stringResource(R.string.volume_swipe_speed),
-                    options = listOf(
-                        stringResource(R.string.default_option),
-                        stringResource(R.string.longer),
-                        stringResource(R.string.longest)
-                    ),
-                    selectedOption = selectedVolumeSwipeSpeed.toString(),
-                    onOptionSelected = { newValue ->
-                        selectedVolumeSwipeSpeed = newValue
-                        aacpManager?.sendControlCommand(
-                            identifier = AACPManager.Companion.ControlCommandIdentifiers.VOLUME_SWIPE_INTERVAL.value,
-                            value = volumeSwipeSpeedOptions.filterValues { it == newValue }.keys.firstOrNull()
-                                ?: 1.toByte()
-                        )
-                    },
-                    textColor = textColor,
-                    hazeState = hazeState
-                )
-            }
+            DropdownMenuComponent(
+                label = stringResource(R.string.volume_swipe_speed),
+                description = stringResource(R.string.volume_swipe_speed_description),
+                options = volumeSwipeSpeedOptions.values.toList(),
+                selectedOption = selectedVolumeSwipeSpeed?: "Default",
+                onOptionSelected = { newValue ->
+                    selectedVolumeSwipeSpeed = newValue
+                    aacpManager?.sendControlCommand(
+                        identifier = AACPManager.Companion.ControlCommandIdentifiers.VOLUME_SWIPE_INTERVAL.value,
+                        value = volumeSwipeSpeedOptions.filterValues { it == newValue }.keys.firstOrNull()
+                            ?: 1.toByte()
+                    )
+                },
+                textColor = textColor,
+                hazeState = hazeState,
+                independent = true
+            )
 
             if (!hearingAidEnabled.value&& isSdpOffsetAvailable.value) {
-                NavigationButton(
-                    to = "transparency_customization",
-                    name = stringResource(R.string.customize_transparency_mode),
-                    navController = navController
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = stringResource(R.string.apply_eq_to).uppercase(),
                     style = TextStyle(
@@ -680,113 +649,6 @@ fun AccessibilitySettingsScreen(navController: NavController) {
     }
 }
 
-
-@Composable
-fun AccessibilityToggle(
-    text: String,
-    mutableState: MutableState<Boolean>,
-    independent: Boolean = false,
-    description: String? = null,
-    title: String? = null
-) {
-    val isDarkTheme = isSystemInDarkTheme()
-    var backgroundColor by remember {
-        mutableStateOf(
-            if (isDarkTheme) Color(0xFF1C1C1E) else Color(
-                0xFFFFFFFF
-            )
-        )
-    }
-    val animatedBackgroundColor by animateColorAsState(
-        targetValue = backgroundColor,
-        animationSpec = tween(durationMillis = 500)
-    )
-    val textColor = if (isDarkTheme) Color.White else Color.Black
-    val cornerShape = if (independent) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
-
-    Column(
-        modifier = Modifier
-            .padding(vertical = 8.dp)
-    ) {
-        if (title != null) {
-            Text(
-                text = title,
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Light,
-                    color = textColor.copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
-                ),
-                modifier = Modifier.padding(8.dp, bottom = 2.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-        Box(
-            modifier = Modifier
-                .background(animatedBackgroundColor, cornerShape)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            backgroundColor =
-                                if (isDarkTheme) Color(0x40888888) else Color(0x40D9D9D9)
-                            tryAwaitRelease()
-                            backgroundColor =
-                                if (isDarkTheme) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
-                        },
-                        onTap = {
-                            mutableState.value = !mutableState.value
-                        }
-                    )
-                },
-        )
-        {
-            val rowHeight = if (independent) 55.dp else 50.dp
-            val rowPadding = if (independent) 12.dp else 4.dp
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(rowHeight)
-                    .padding(horizontal = rowPadding),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = text,
-                    modifier = Modifier.weight(1f),
-                    fontSize = 16.sp,
-                    color = textColor
-                )
-                StyledSwitch(
-                    checked = mutableState.value,
-                    onCheckedChange = {
-                        mutableState.value = it
-                    },
-                )
-            }
-        }
-        if (description != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Box ( // for some reason, haze and backdrop don't work for uncontained text
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(if (isDarkTheme) Color(0xFF000000) else Color(0xFFF2F2F7), cornerShape)
-            ) {
-                Text(
-                    text = description,
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Light,
-                        color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
-                        fontFamily = FontFamily(Font(R.font.sf_pro))
-                    ),
-                    // modifier = Modifier
-                    //     .padding(horizontal = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-
 @ExperimentalHazeMaterialsApi
 @Composable
 private fun DropdownMenuComponent(
@@ -797,6 +659,7 @@ private fun DropdownMenuComponent(
     textColor: Color,
     hazeState: HazeState,
     description: String? = null,
+    independent: Boolean = true
 ) {
     val density = LocalDensity.current
     val itemHeightPx = with(density) { 48.dp.toPx() }
@@ -808,125 +671,164 @@ private fun DropdownMenuComponent(
     var parentHoveredIndex by remember { mutableStateOf<Int?>(null) }
     var parentDragActive by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp)
-            .height(55.dp)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val now = System.currentTimeMillis()
-                    if (expanded) {
-                        expanded = false
-                        lastDismissTime = now
-                    } else {
-                        if (now - lastDismissTime > 250L) {
-                            touchOffset = offset
-                            expanded = true
-                        }
-                    }
-                }
-            }
-            .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { offset ->
-                        val now = System.currentTimeMillis()
-                        touchOffset = offset
-                        if (!expanded && now - lastDismissTime > 250L) {
-                            expanded = true
-                        }
-                        lastDismissTime = now
-                        parentDragActive = true
-                        parentHoveredIndex = 0
-                    },
-                    onDrag = { change, _ ->
-                        val current = change.position
-                        val touch = touchOffset ?: current
-                        val posInPopupY = current.y - touch.y
-                        val idx = (posInPopupY / itemHeightPx).toInt()
-                        parentHoveredIndex = idx
-                    },
-                    onDragEnd = {
-                        parentDragActive = false
-                        parentHoveredIndex?.let { idx ->
-                            if (idx in options.indices) {
-                                onOptionSelected(options[idx])
-                                expanded = false
-                                lastDismissTime = System.currentTimeMillis()
-                            }
-                        }
-                        parentHoveredIndex = null
-                    },
-                    onDragCancel = {
-                        parentDragActive = false
-                        parentHoveredIndex = null
-                    }
-                )
-            },
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontSize = 16.sp,
-            color = textColor,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-        Box(
-            modifier = Modifier.onGloballyPositioned { coordinates ->
-                boxPosition = coordinates.positionInParent()
-            }
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = selectedOption,
-                    fontSize = 16.sp,
-                    color = textColor.copy(alpha = 0.8f)
-                )
-                Icon(
-                    Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = textColor.copy(alpha = 0.6f)
-                )
-            }
-
-            StyledDropdown(
-                expanded = expanded,
-                onDismissRequest = {
-                    expanded = false
-                    lastDismissTime = System.currentTimeMillis()
-                },
-                options = options,
-                selectedOption = selectedOption,
-                touchOffset = touchOffset,
-                boxPosition = boxPosition,
-                externalHoveredIndex = parentHoveredIndex,
-                externalDragActive = parentDragActive,
-                onOptionSelected = { option ->
-                    onOptionSelected(option)
-                    expanded = false
-                },
-                hazeState = hazeState
-            )
-        }
-        Box(
+    Column(modifier = Modifier.fillMaxWidth()){
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .background(if (isSystemInDarkTheme()) Color(0xFF000000) else Color(0xFFF2F2F7))
-        ){
-            Text(
-                text = description ?: "",
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Light,
-                    color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
-                    fontFamily = FontFamily(Font(R.font.sf_pro))
+                .then(
+                    if (independent) {
+                        if (description != null) {
+                            Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        } else {
+                            Modifier.padding(vertical = 8.dp)
+                        }
+                    } else Modifier
                 )
-            )
+                .background(
+                    if (independent) (if (isSystemInDarkTheme()) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)) else Color.Transparent,
+                    if (independent) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp)
+                )
+                .clip(if (independent) RoundedCornerShape(14.dp) else RoundedCornerShape(0.dp))
+        ){
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp)
+                    .height(55.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val now = System.currentTimeMillis()
+                            if (expanded) {
+                                expanded = false
+                                lastDismissTime = now
+                            } else {
+                                if (now - lastDismissTime > 250L) {
+                                    touchOffset = offset
+                                    expanded = true
+                                }
+                            }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                val now = System.currentTimeMillis()
+                                touchOffset = offset
+                                if (!expanded && now - lastDismissTime > 250L) {
+                                    expanded = true
+                                }
+                                lastDismissTime = now
+                                parentDragActive = true
+                                parentHoveredIndex = 0
+                            },
+                            onDrag = { change, _ ->
+                                val current = change.position
+                                val touch = touchOffset ?: current
+                                val posInPopupY = current.y - touch.y
+                                val idx = (posInPopupY / itemHeightPx).toInt()
+                                parentHoveredIndex = idx
+                            },
+                            onDragEnd = {
+                                parentDragActive = false
+                                parentHoveredIndex?.let { idx ->
+                                    if (idx in options.indices) {
+                                        onOptionSelected(options[idx])
+                                        expanded = false
+                                        lastDismissTime = System.currentTimeMillis()
+                                    }
+                                }
+                                parentHoveredIndex = null
+                            },
+                            onDragCancel = {
+                                parentDragActive = false
+                                parentHoveredIndex = null
+                            }
+                        )
+                    },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ){
+                    Text(
+                        text = label,
+                        fontSize = 16.sp,
+                        color = textColor,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    if (!independent && description != null){
+                        Text(
+                            text = description,
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Light,
+                                color = textColor.copy(alpha = 0.6f),
+                                fontFamily = FontFamily(Font(R.font.sf_pro))
+                            ),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        boxPosition = coordinates.positionInParent()
+                    }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = selectedOption,
+                            fontSize = 16.sp,
+                            color = textColor.copy(alpha = 0.8f)
+                        )
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = textColor.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    StyledDropdown(
+                        expanded = expanded,
+                        onDismissRequest = {
+                            expanded = false
+                            lastDismissTime = System.currentTimeMillis()
+                        },
+                        options = options,
+                        selectedOption = selectedOption,
+                        touchOffset = touchOffset,
+                        boxPosition = boxPosition,
+                        externalHoveredIndex = parentHoveredIndex,
+                        externalDragActive = parentDragActive,
+                        onOptionSelected = { option ->
+                            onOptionSelected(option)
+                            expanded = false
+                        },
+                        hazeState = hazeState
+                    )
+                }
+            }
+        }
+        if (independent && description != null){
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .background(if (isSystemInDarkTheme()) Color(0xFF000000) else Color(0xFFF2F2F7))
+            ){
+                Text(
+                    text = description,
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Light,
+                        color = (if (isSystemInDarkTheme()) Color.White else Color.Black).copy(alpha = 0.6f),
+                        fontFamily = FontFamily(Font(R.font.sf_pro))
+                    )
+                )
+            }
         }
     }
 }
