@@ -68,6 +68,12 @@ For installation and detailed info, see the [Linux README](/linux/README.md).
 | ![Long Press Configuration](/android/imgs/long-press.png) | ![Widget](/android/imgs/widget.png) | ![Customizations 1](/android/imgs/customizations-1.png) |
 | ![Customizations 2](/android/imgs/customizations-2.png) | ![accessibility](/android/imgs/accessibility.png) |![transparency](/android/imgs/transparency.png) |
 |![hearing-aid](/android/imgs/hearing-aid.png) |![hearing-aid-adjustments](/android/imgs/hearing-aid-adjustments.png) | |
+
+
+here's a very unprofessional demo video
+
+https://github.com/user-attachments/assets/43911243-0576-4093-8c55-89c1db5ea533
+
 #### Root Requirement
 
 > [!CAUTION]
@@ -89,9 +95,6 @@ Accessibility settings like customizing transparency mode (amplification, balanc
 
 The hearing aid feature can now also be used. Currently it can only be used to adjust the settings, not actually take a hearing test because it requires much more precision. It is much better to use an already available audiogram result.
 
-here's a very unprofessional demo
-
-https://github.com/user-attachments/assets/43911243-0576-4093-8c55-89c1db5ea533
 
 #### Installation Methods
 
